@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tab Mover</title>
+<link rel="stylesheet" href="mover.css">
+</head>
+<body>
+<h1>Tab Mover</h1>
+
+<section>
+  <h2>1. Export (old Firefox)</h2>
+  <p>Saves every open tab, in tab order, with its title and link.</p>
+  <button id="export">Export all tabs</button>
+  <p id="export-status" class="status"></p>
+  <div id="export-actions" hidden>
+    <button id="download">Save as file</button>
+    <button id="copy">Copy to clipboard</button>
+  </div>
+</section>
+
+<section>
+  <h2>2. Import (Firefox+)</h2>
+  <p>Pick the exported file, or paste its contents below.</p>
+  <input type="file" id="file" accept=".json,application/json,text/plain">
+  <textarea id="paste" placeholder="…or paste the export here"></textarea>
+
+  <details>
+    <summary>Mark group members (optional)</summary>
+    <p>Paste the links you shared from the big group. Matching tabs get <code>#ffg</code> added to their link,
+      so searching <code>#ffg</code> in Firefox+ finds exactly those tabs for Select all → Add to group.</p>
+    <textarea id="group" placeholder="Paste the shared group links here"></textarea>
+  </details>
+
+  <label><input type="checkbox" id="first-only"> Test run: only the first 20 tabs</label>
+  <button id="import">Open tabs</button>
+  <button id="stop" hidden>Pause</button>
+  <p id="import-status" class="status"></p>
+</section>
+
+<script src="mover.js"></script>
+</body>
+</html>

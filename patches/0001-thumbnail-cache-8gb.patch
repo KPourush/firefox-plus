@@ -1,0 +1,13 @@
+diff --git a/mobile/android/android-components/components/browser/thumbnails/src/main/java/mozilla/components/browser/thumbnails/utils/ThumbnailDiskCache.kt b/mobile/android/android-components/components/browser/thumbnails/src/main/java/mozilla/components/browser/thumbnails/utils/ThumbnailDiskCache.kt
+index d96104c9..89a9f60b 100644
+--- a/mobile/android/android-components/components/browser/thumbnails/src/main/java/mozilla/components/browser/thumbnails/utils/ThumbnailDiskCache.kt
++++ b/mobile/android/android-components/components/browser/thumbnails/src/main/java/mozilla/components/browser/thumbnails/utils/ThumbnailDiskCache.kt
+@@ -14,7 +14,7 @@ import mozilla.components.support.base.log.logger.Logger
+ import mozilla.components.support.utils.cache.CacheDirectoryMigration
+ import mozilla.components.support.utils.cache.DiskLruCacheStore
+ 
+-private const val MAXIMUM_CACHE_THUMBNAIL_DATA_BYTES: Long = 1024L * 1024L * 100L // 100 MB
++private const val MAXIMUM_CACHE_THUMBNAIL_DATA_BYTES: Long = 1024L * 1024L * 1024L * 8L // 8 GB
+ private const val THUMBNAIL_DISK_CACHE_VERSION = 1
+ private const val ENCODING_QUALITY = 90
+ private const val BASE_DIR_NAME = "thumbnails"

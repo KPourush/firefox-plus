@@ -1,0 +1,144 @@
+name: Build Firefox+
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Firefox tag to build (e.g. FIREFOX-ANDROID_159_0_1_RELEASE). Empty = latest release."
+        required: false
+        default: ""
+      force:
+        description: "Rebuild even if a release for this version already exists"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Pick Firefox release
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            tag="$INPUT_TAG"
+          else
+            tag=$(git ls-remote --tags https://github.com/mozilla-firefox/firefox 'FIREFOX-ANDROID_*_RELEASE' \
+              | sed 's|.*refs/tags/||' | grep -E '^FIREFOX-ANDROID_[0-9]+(_[0-9]+)+_RELEASE$' \
+              | sed 's/^FIREFOX-ANDROID_//; s/_RELEASE$//' | tr '_' '.' | sort -V | tail -1)
+            tag="FIREFOX-ANDROID_$(echo "$tag" | tr '.' '_')_RELEASE"
+          fi
+          version=$(echo "$tag" | sed 's/^FIREFOX-ANDROID_//; s/_RELEASE$//' | tr '_' '.')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$FORCE" != "true" ] && gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "v$version already built, nothing to do."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Building $tag ($version)"
+          fi
+
+      - name: Free disk space
+        if: steps.pick.outputs.skip == 'false'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/.ghcup
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Fetch Firefox source
+        if: steps.pick.outputs.skip == 'false'
+        run: |
+          git clone --depth 1 --branch "${{ steps.pick.outputs.tag }}" https://github.com/mozilla-firefox/firefox "$HOME/firefox"
+          du -sh "$HOME/firefox"
+
+      - name: Apply patches
+        if: steps.pick.outputs.skip == 'false'
+        run: |
+          cd "$HOME/firefox"
+          for p in "$GITHUB_WORKSPACE"/patches/*.patch; do
+            echo "Applying $(basename "$p")"
+            git apply --verbose "$p"
+          done
+          git status --short
+
+      - name: Write mozconfig
+        if: steps.pick.outputs.skip == 'false'
+        run: |
+          cat > "$HOME/firefox/mozconfig" <<'EOF'
+          ac_add_options --enable-project=mobile/android
+          ac_add_options --target=aarch64-linux-android
+          ac_add_options --enable-artifact-builds
+          mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/objdir
+          EOF
+          sed -i 's/^ *//' "$HOME/firefox/mozconfig"
+          cat "$HOME/firefox/mozconfig"
+
+      - name: Bootstrap toolchains
+        if: steps.pick.outputs.skip == 'false'
+        run: |
+          cd "$HOME/firefox"
+          ./mach --no-interactive bootstrap --application-choice "GeckoView/Firefox for Android Artifact Mode"
+
+      - name: Build GeckoView (prebuilt engine from Mozilla)
+        if: steps.pick.outputs.skip == 'false'
+        run: |
+          cd "$HOME/firefox"
+          ./mach build
+
+      - name: Build Firefox+ APK
+        if: steps.pick.outputs.skip == 'false'
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g"
+        run: |
+          cd "$HOME/firefox"
+          ./mach gradle fenix:assembleRelease
+          find objdir/gradle/build/mobile/android/fenix/app/outputs/apk -name '*.apk' -print
+
+      - name: Sign APK
+        if: steps.pick.outputs.skip == 'false'
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          cd "$HOME/firefox"
+          unsigned=$(find objdir/gradle/build/mobile/android/fenix/app/outputs/apk/release -name '*arm64-v8a*.apk' | head -1)
+          [ -n "$unsigned" ] || { echo "No arm64 APK found"; exit 1; }
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          bt=$(dirname "$(find "$HOME/.mozbuild" -path '*build-tools/*/apksigner' | sort -V | tail -1)")
+          [ -x "$bt/apksigner" ] || { echo "apksigner not found"; exit 1; }
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          out="$GITHUB_WORKSPACE/out/firefox-plus-${{ steps.pick.outputs.version }}-arm64-v8a.apk"
+          "$bt/zipalign" -f -p 4 "$unsigned" "$RUNNER_TEMP/aligned.apk"
+          "$bt/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:KEYSTORE_PASSWORD \
+            --ks-key-alias "$KEY_ALIAS" --key-pass env:KEYSTORE_PASSWORD --out "$out" "$RUNNER_TEMP/aligned.apk"
+          "$bt/apksigner" verify --print-certs "$out"
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Publish release
+        if: steps.pick.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="v${{ steps.pick.outputs.version }}"
+          gh release delete "$v" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$v" out/*.apk --repo "$GITHUB_REPOSITORY" \
+            --title "Firefox+ ${{ steps.pick.outputs.version }}" \
+            --notes "Firefox for Android ${{ steps.pick.outputs.version }} (${{ steps.pick.outputs.tag }}) with: thumbnail cache raised to 8 GB, Select all in tab search, separate app ID."

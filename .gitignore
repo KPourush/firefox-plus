@@ -1,0 +1,5 @@
+*.jks
+*.keystore
+signing-secrets.txt
+KEYSTORE_B64.txt
+dist/

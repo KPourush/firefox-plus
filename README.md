@@ -1,0 +1,21 @@
+# Firefox+
+
+Personal build of Firefox for Android, built from Mozilla's official release source with three small patches:
+
+| Patch | What it changes |
+|---|---|
+| `0001-thumbnail-cache-8gb.patch` | Tab thumbnail cache limit raised from 100 MB to 8 GB, so previews are no longer evicted after ~100 tabs. |
+| `0002-tab-search-select-all.patch` | Tab search gets a "Select all (N)" button: selects every matching tab in tab order and returns to the tab tray, ready for Add to group. |
+| `0003-separate-app-identity.patch` | App ID `org.mozilla.firefox_plus` and name "Firefox+", so it installs next to the Play Store Firefox. |
+
+## How builds happen
+
+`.github/workflows/build.yml` runs daily. It picks the newest `FIREFOX-ANDROID_*_RELEASE` tag, applies the patches, builds with Mozilla's prebuilt engine (artifact build), signs the APK and publishes it as release `v<version>`. Already-built versions are skipped. Run it by hand under Actions → Build Firefox+ → Run workflow.
+
+Required repository secrets: `KEYSTORE_B64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`.
+
+Install and update on the phone with Obtainium pointed at this repository.
+
+## Tab Mover
+
+`tab-mover/` is a small extension for moving tabs between the old Firefox and Firefox+: export all tabs in order to a JSON file, then re-open them in order without loading them all at once. Optional: paste a shared tab group's links to mark those tabs with `#ffg`, then search `#ffg` → Select all → Add to group.

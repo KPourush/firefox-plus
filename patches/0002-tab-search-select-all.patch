@@ -1,0 +1,100 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabSearchAction.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabSearchAction.kt
+index 61908f00..e5b48f5f 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabSearchAction.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabSearchAction.kt
+@@ -30,4 +30,7 @@ sealed interface TabSearchAction : TabsTrayAction {
+      * @property searchResult The tab selected by the user.
+      */
+     data class SearchResultClicked(val searchResult: TabsTrayItem) : TabSearchAction
++
++    /** Fired when the user taps "Select all" on the search results; selects every matching tab. */
++    data object SelectAllResultsClicked : TabSearchAction
+ }
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabSearchActionReducer.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabSearchActionReducer.kt
+index 0415574d..aa873ba0 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabSearchActionReducer.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabSearchActionReducer.kt
+@@ -4,7 +4,9 @@
+ 
+ package org.mozilla.fenix.tabstray.redux.reducer
+ 
++import org.mozilla.fenix.tabstray.data.TabsTrayItem
+ import org.mozilla.fenix.tabstray.redux.action.TabSearchAction
++import org.mozilla.fenix.tabstray.redux.state.TabSearchState
+ import org.mozilla.fenix.tabstray.redux.state.TabsTrayState
+ 
+ /** Reducer for [TabSearchAction] dispatched from the Tabs Tray store. */
+@@ -38,6 +40,39 @@ object TabSearchActionReducer {
+             is TabSearchAction.SearchResultClicked -> {
+                 state
+             }
++
++            is TabSearchAction.SelectAllResultsClicked -> selectAllResults(state)
+         }
+     }
++
++    private fun selectAllResults(state: TabsTrayState): TabsTrayState {
++        val matches =
++            state.tabSearchState.searchResults
++                .filterIsInstance<TabsTrayItem.Tab>()
++                .filterNot { it.isHomepageItem }
++                .map { it.id }
++                .toHashSet()
++        if (matches.isEmpty()) return state
++
++        val orderedTabs =
++            (state.normalTabsState.items + state.privateBrowsing.tabs)
++                .flatMap { item ->
++                    when (item) {
++                        is TabsTrayItem.Tab -> listOf(item)
++                        is TabsTrayItem.TabGroup -> item.tabs
++                    }
++                }
++                .filter { it.id in matches }
++                .distinctBy { it.id }
++
++        return state.copy(
++            mode =
++                TabsTrayState.Mode.Select(
++                    selectedTabs = LinkedHashSet(orderedTabs),
++                    selectedTabGroups = emptySet(),
++                ),
++            tabSearchState = TabSearchState(query = "", searchResults = emptyList()),
++            backStack = state.popBackStack(),
++        )
++    }
+ }
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabsearch/TabSearchScreen.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabsearch/TabSearchScreen.kt
+index efee26f1..eec30253 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabsearch/TabSearchScreen.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabsearch/TabSearchScreen.kt
+@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Scaffold
+ import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
+ import androidx.compose.material3.rememberSearchBarState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
+@@ -138,6 +139,21 @@ fun TabSearchScreen(
+             if (state.showNoResults) {
+                 EmptyTabSearchResults(modifier = Modifier.fillMaxSize())
+             } else {
++                val selectableCount = state.searchResults.count { it is TabsTrayItem.Tab && !it.isHomepageItem }
++                if (selectableCount > 0) {
++                    TextButton(
++                        onClick = {
++                            focusManager.clearFocus(force = true)
++                            keyboardController?.hide()
++                            onAction(TabSearchAction.SelectAllResultsClicked)
++                        },
++                        modifier = Modifier.padding(horizontal = SearchResultsPadding),
++                    ) {
++                        Text(
++                            text = "${stringResource(id = R.string.tab_tray_menu_select_all_tabs)} ($selectableCount)",
++                        )
++                    }
++                }
+                 TabSearchResults(
+                     searchResults = state.searchResults,
+                     query = state.query,
