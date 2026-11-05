@@ -55,9 +55,13 @@ function parseGroupLinks(text) {
 async function readInput() {
   const file = $("file").files[0];
   const raw = file ? await file.text() : $("paste").value;
-  const data = JSON.parse(raw);
-  if (!data || !Array.isArray(data.tabs)) throw new Error("This is not a Tab Mover export.");
-  return data.tabs;
+  try {
+    const data = JSON.parse(raw);
+    if (data && Array.isArray(data.tabs)) return data.tabs;
+  } catch (e) {}
+  const urls = raw.match(/https?:\/\/[^\s<>"]+/g) || [];
+  if (!urls.length) throw new Error("No links found. Use a Tab Mover export or text with one link per line.");
+  return urls.map((u) => ({ t: "", u: u.replace(/[)\]>,.;'"]+$/, "") }));
 }
 
 async function createTab(tab, state) {
