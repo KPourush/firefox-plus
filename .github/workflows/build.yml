@@ -2,7 +2,7 @@ name: Build Firefox+
 
 on:
   schedule:
-    - cron: "17 5 * * *"
+    - cron: "17 5 * * 3"
   workflow_dispatch:
     inputs:
       tag:

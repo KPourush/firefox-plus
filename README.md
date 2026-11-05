@@ -10,7 +10,7 @@ Personal build of Firefox for Android, built from Mozilla's official release sou
 
 ## How builds happen
 
-`.github/workflows/build.yml` runs daily. It picks the newest `FIREFOX-ANDROID_*_RELEASE` tag, applies the patches, builds with Mozilla's prebuilt engine (artifact build), signs the APK and publishes it as release `v<version>`. Already-built versions are skipped. Run it by hand under Actions → Build Firefox+ → Run workflow.
+`.github/workflows/build.yml` runs weekly (Wednesdays). It picks the newest `FIREFOX-ANDROID_*_RELEASE` tag, applies the patches, builds with Mozilla's prebuilt engine (artifact build), signs the APK and publishes it as release `v<version>`. Already-built versions are skipped. Run it by hand under Actions → Build Firefox+ → Run workflow.
 
 Required repository secrets: `KEYSTORE_B64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`.
 
