@@ -55,6 +55,22 @@ jobs:
             echo "Building $tag ($version)"
           fi
 
+      - name: Check signing secrets
+        if: steps.pick.outputs.skip == 'false'
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          missing=""
+          [ -n "$KEYSTORE_B64" ] || missing="$missing KEYSTORE_B64"
+          [ -n "$KEYSTORE_PASSWORD" ] || missing="$missing KEYSTORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || missing="$missing KEY_ALIAS"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+
       - name: Free disk space
         if: steps.pick.outputs.skip == 'false'
         run: |
