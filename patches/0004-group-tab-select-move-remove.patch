@@ -1,0 +1,365 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
+index 386ec964..2c9893f6 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
+@@ -17,6 +17,7 @@ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+@@ -64,7 +65,10 @@ fun ExpandedTabGroup(
+     actions: ExpandedTabGroupActions,
+     displayTabsInGrid: Boolean,
+     itemInteractionHandler: ItemInteractionHandler,
++    selectionMode: TabsTrayState.Mode = TabsTrayState.Mode.Normal,
+ ) {
++    val selectedCount =
++        if (selectionMode is TabsTrayState.Mode.Select) group.tabs.count { selectionMode.contains(it) } else 0
+     Column(
+         modifier =
+             Modifier.testTag(TabsTrayTestTag.TAB_GROUP_BOTTOM_SHEET_ROOT)
+@@ -73,12 +77,20 @@ fun ExpandedTabGroup(
+                     end = FirefoxTheme.layout.space.dynamic200,
+                 )
+     ) {
+-        ViewTabGroupHeader(
+-            title = group.title,
+-            groupTheme = group.theme,
+-            groupTabsSize = group.tabs.size,
+-            actions = actions,
+-        )
++        if (selectedCount > 0) {
++            GroupSelectionHeader(
++                selectedCount = selectedCount,
++                allSelected = selectedCount == group.tabs.size,
++                actions = actions,
++            )
++        } else {
++            ViewTabGroupHeader(
++                title = group.title,
++                groupTheme = group.theme,
++                groupTabsSize = group.tabs.size,
++                actions = actions,
++            )
++        }
+ 
+         TabLayout(
+             tabs = group.tabs,
+@@ -88,12 +100,12 @@ fun ExpandedTabGroup(
+             displayTabGroupOnboarding = false,
+             liveReorderEnabled = true,
+             selectedItemIndex = group.initialScrollIndex,
+-            selectionMode = TabsTrayState.Mode.Normal,
++            selectionMode = selectionMode,
+             itemInteractionHandler = itemInteractionHandler,
+             modifier = Modifier,
+             onTabClose = actions.onTabClose,
+             onItemClick = actions.onItemClick,
+-            onItemLongClick = { item -> }, // Ignore long click
++            onItemLongClick = actions.onItemLongClick,
+             onEditTabGroupClick = {}, // Ignore tab group edits
+             onCloseTabGroupClick = {}, // Ignore tab group closes
+             onShareTabGroupClick = {}, // Ignore tab group shares
+@@ -176,6 +188,48 @@ private fun ViewTabGroupHeader(
+     }
+ }
+ 
++@Composable
++private fun GroupSelectionHeader(
++    selectedCount: Int,
++    allSelected: Boolean,
++    actions: ExpandedTabGroupActions,
++) {
++    Row(
++        modifier =
++            Modifier.fillMaxWidth()
++                .padding(
++                    top = FirefoxTheme.layout.space.static150,
++                    bottom = FirefoxTheme.layout.space.static200,
++                )
++                .wrapContentHeight(),
++        verticalAlignment = Alignment.CenterVertically,
++    ) {
++        IconButton(
++            onClick = actions.onExitSelectModeClick,
++            contentDescription = "Cancel selection",
++        ) {
++            Icon(
++                painter = painterResource(id = iconsR.drawable.mozac_ic_cross_24),
++                contentDescription = null,
++                tint = MaterialTheme.colorScheme.onSurface,
++            )
++        }
++        Text(
++            text = "$selectedCount selected",
++            modifier = Modifier.weight(1f),
++            color = MaterialTheme.colorScheme.onSurface,
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++            style = FirefoxTheme.typography.headline7,
++        )
++        TextButton(onClick = if (allSelected) actions.onSelectNoneInGroupClick else actions.onSelectAllInGroupClick) {
++            Text(text = if (allSelected) "None" else "All")
++        }
++        TextButton(onClick = actions.onMoveSelectedClick) { Text(text = "Move") }
++        TextButton(onClick = actions.onRemoveSelectedFromGroupClick) { Text(text = "Remove") }
++    }
++}
++
+ @Composable
+ private fun AddTabToGroupButton(
+     onClick: () -> Unit,
+@@ -344,4 +398,10 @@ data class ExpandedTabGroupActions(
+     val onUngroupTabGroupClick: () -> Unit,
+     val onAddNewTabClick: (() -> Unit)?,
+     val onShareTabGroupClick: () -> Unit,
++    val onItemLongClick: (TabsTrayItem) -> Unit = {},
++    val onExitSelectModeClick: () -> Unit = {},
++    val onSelectAllInGroupClick: () -> Unit = {},
++    val onSelectNoneInGroupClick: () -> Unit = {},
++    val onMoveSelectedClick: () -> Unit = {},
++    val onRemoveSelectedFromGroupClick: () -> Unit = {},
+ )
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowReducer.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowReducer.kt
+index 8930dfde..58371cb1 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowReducer.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowReducer.kt
+@@ -45,6 +45,8 @@ object TabGroupFlowReducer {
+             is TabGroupAction.OpenCreatedTabGroup,
+             is TabGroupAction.OpenTabGroupClicked,
+             is TabGroupAction.SelectedTabsAddedToGroup,
++            is TabGroupAction.SelectedTabsRemovedFromGroup,
++            is TabGroupAction.GroupTabsSelectionChanged,
+             is TabGroupAction.TabClosed,
+             is TabGroupAction.TabGroupClicked,
+             is TabGroupAction.ThemeChanged,
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowTelemetryMiddleware.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowTelemetryMiddleware.kt
+index b8592ec0..fa9d9812 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowTelemetryMiddleware.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowTelemetryMiddleware.kt
+@@ -65,6 +65,8 @@ class TabGroupFlowTelemetryMiddleware : Middleware<TabGroupFlowState, TabGroupAc
+             is TabGroupAction.OpenCreatedTabGroup,
+             is TabGroupAction.OpenTabGroupClicked,
+             is TabGroupAction.SelectedTabsAddedToGroup,
++            is TabGroupAction.SelectedTabsRemovedFromGroup,
++            is TabGroupAction.GroupTabsSelectionChanged,
+             is TabGroupAction.TabClosed,
+             is TabGroupAction.TabGroupClicked,
+             is TabGroupAction.UngroupRequested,
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabGroupAction.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabGroupAction.kt
+index 18fc465c..56b23abb 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabGroupAction.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabGroupAction.kt
+@@ -190,4 +190,28 @@ sealed interface TabGroupAction : TabsTrayAction {
+ 
+     /** Invoked when back navigation is requested. */
+     data object NavigateBackInvoked : TabGroupAction
++
++    /**
++     * Fired when the user removes the selected tabs of an expanded Tab Group from that group.
++     *
++     * @property groupId The ID of the group the tabs are removed from.
++     * @property tabIds The IDs of the tabs to remove from the group.
++     * @property emptiesGroup Whether the group has no tabs left afterwards.
++     */
++    data class SelectedTabsRemovedFromGroup(
++        val groupId: String,
++        val tabIds: List<String>,
++        val emptiesGroup: Boolean,
++    ) : TabGroupAction, TabsStorageAction
++
++    /**
++     * Fired when the user selects or deselects every tab of an expanded Tab Group at once.
++     *
++     * @property group The [TabsTrayItem.TabGroup] whose tabs are (de)selected.
++     * @property selected Whether the tabs become selected.
++     */
++    data class GroupTabsSelectionChanged(
++        val group: TabsTrayItem.TabGroup,
++        val selected: Boolean,
++    ) : TabGroupAction
+ }
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
+index 0dbdff55..57d84815 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
+@@ -217,6 +217,16 @@ class TabStorageMiddleware(
+ 
+             // todo-bug-2069535: Hook up to the coordinator storage layer when it is ready
+             is TabGroupAction.TabAddedToNewTabGroup -> {}
++
++            is TabGroupAction.SelectedTabsRemovedFromGroup -> {
++                scope.launch {
++                    if (action.emptiesGroup) {
++                        tabGroupRepository.ungroupTabGroup(tabGroupId = action.groupId)
++                    } else {
++                        tabGroupRepository.deleteTabGroupAssignmentsById(tabIds = action.tabIds)
++                    }
++                }
++            }
+         }
+     }
+ 
+@@ -225,7 +235,13 @@ class TabStorageMiddleware(
+         store: Store<TabsTrayState, TabsTrayAction>,
+     ) {
+         val selectedTabIds = store.state.mode.selectedTabs.map { it.id }
+-        val selectedTabGroupIds = store.state.mode.selectedTabGroups.map { it.id } - action.groupId
++        val movedIds = selectedTabIds.toSet()
++        val emptiedGroupIds =
++            store.state.tabGroupState.groups
++                .filter { it.id != action.groupId && it.tabs.isNotEmpty() && it.tabs.all { tab -> tab.id in movedIds } }
++                .map { it.id }
++        val selectedTabGroupIds =
++            (store.state.mode.selectedTabGroups.map { it.id } + emptiedGroupIds).distinct() - action.groupId
+ 
+         scope.launch {
+             addTabItemsToTabGroup(
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt
+index b8c3ecab..c5cf6ec7 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt
+@@ -47,10 +47,46 @@ object TabGroupActionReducer {
+             }
+             is TabGroupAction.TabGroupClicked -> processTabGroupClick(state, action.group)
+             is TabGroupAction.TabAddedToExistingTabGroup -> state
+-            is TabGroupAction.SelectedTabsAddedToGroup ->
++            is TabGroupAction.SelectedTabsAddedToGroup -> {
++                val movedIds = state.mode.selectedTabs.map { it.id }.toSet()
+                 state.copy(
+                     mode = TabsTrayState.Mode.Normal,
+-                    backStack = state.backStack.popTabGroupFlow(),
++                    backStack =
++                        state.backStack.popTabGroupFlow().filterNot { destination ->
++                            destination is ExpandedTabGroup &&
++                                destination.group.id != action.groupId &&
++                                state.tabGroupState.groups
++                                    .firstOrNull { it.id == destination.group.id }
++                                    ?.tabs
++                                    ?.all { it.id in movedIds } == true
++                        },
++                )
++            }
++            is TabGroupAction.GroupTabsSelectionChanged -> {
++                val groupIds = action.group.tabs.map { it.id }.toSet()
++                val remaining = state.mode.selectedTabs.filterNot { it.id in groupIds }
++                val selectedTabs = if (action.selected) remaining + action.group.tabs else remaining
++                state.copy(
++                    mode =
++                        if (selectedTabs.isEmpty() && state.mode.selectedTabGroups.isEmpty()) {
++                            TabsTrayState.Mode.Normal
++                        } else {
++                            TabsTrayState.Mode.Select(
++                                selectedTabs = LinkedHashSet(selectedTabs),
++                                selectedTabGroups = state.mode.selectedTabGroups,
++                            )
++                        }
++                )
++            }
++            is TabGroupAction.SelectedTabsRemovedFromGroup ->
++                state.copy(
++                    mode = TabsTrayState.Mode.Normal,
++                    backStack =
++                        if (action.emptiesGroup) {
++                            state.backStack.filterNot { it is ExpandedTabGroup && it.group.id == action.groupId }
++                        } else {
++                            state.backStack
++                        },
+                 )
+             is TabGroupAction.DeleteClicked ->
+                 state.copy(backStack = state.backStack + DeleteTabGroupConfirmationDialog(group = action.group))
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
+index 4797acfe..fdf0e232 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
+@@ -409,6 +409,7 @@ class TabManagementFragment : Fragment() {
+                     args = args,
+                     handleTabClick = handleTabClick,
+                     displayTabsInGrid = state.config.displayTabsInGrid,
++                    selectionMode = state.mode,
+                 )
+             }
+             entry<TabManagerNavDestination.DeleteTabGroupConfirmationDialog>(metadata = DialogSceneStrategy.dialog()) {
+@@ -534,6 +535,7 @@ class TabManagementFragment : Fragment() {
+         args: TabManagerNavDestination.ExpandedTabGroup,
+         handleTabClick: (TabsTrayItem.Tab) -> Unit,
+         displayTabsInGrid: Boolean,
++        selectionMode: TabsTrayState.Mode,
+     ) {
+         val expandedGroup by tabsTrayStore.observeTabGroup(tabGroup = args.group).collectAsState(initial = args.group)
+         val expandedGroupDotColor = expandedGroup.theme.primary.toArgb()
+@@ -550,9 +552,19 @@ class TabManagementFragment : Fragment() {
+             actions = expandedGroupActions,
+             displayTabsInGrid = displayTabsInGrid,
+             itemInteractionHandler = itemInteractionHandler,
++            selectionMode = selectionMode,
+         )
+     }
+ 
++    private fun toggleTabSelection(tab: TabsTrayItem.Tab) {
++        val existing = tabsTrayStore.state.mode.selectedTabs.firstOrNull { it.id == tab.id }
++        if (existing != null) {
++            tabsTrayStore.dispatch(TabsTrayAction.RemoveSelectTab(existing))
++        } else {
++            tabsTrayStore.dispatch(TabsTrayAction.AddSelectTab(tab))
++        }
++    }
++
+     private fun expandedTabGroupActions(
+         handleTabClick: (TabsTrayItem.Tab) -> Unit,
+         expandedGroup: TabsTrayItem.TabGroup,
+@@ -561,11 +573,50 @@ class TabManagementFragment : Fragment() {
+         return ExpandedTabGroupActions(
+             onItemClick = {
+                 when (it) {
+-                    is TabsTrayItem.Tab -> handleTabClick(it)
++                    is TabsTrayItem.Tab ->
++                        if (tabsTrayStore.state.mode is TabsTrayState.Mode.Select) {
++                            toggleTabSelection(it)
++                        } else {
++                            handleTabClick(it)
++                        }
+ 
+                     else -> {}
+                 }
+             },
++            onItemLongClick = {
++                if (it is TabsTrayItem.Tab) {
++                    if (tabsTrayStore.state.mode is TabsTrayState.Mode.Select) {
++                        toggleTabSelection(it)
++                    } else {
++                        tabsTrayStore.dispatch(TabsTrayAction.TabItemLongClicked(it))
++                    }
++                }
++            },
++            onExitSelectModeClick = {
++                tabsTrayStore.dispatch(TabsTrayAction.ExitSelectMode)
++            },
++            onSelectAllInGroupClick = {
++                tabsTrayStore.dispatch(TabGroupAction.GroupTabsSelectionChanged(group = expandedGroup, selected = true))
++            },
++            onSelectNoneInGroupClick = {
++                tabsTrayStore.dispatch(TabGroupAction.GroupTabsSelectionChanged(group = expandedGroup, selected = false))
++            },
++            onMoveSelectedClick = {
++                tabsTrayStore.dispatch(TabGroupAction.AddToTabGroup)
++            },
++            onRemoveSelectedFromGroupClick = {
++                val groupTabIds = expandedGroup.tabs.map { it.id }.toSet()
++                val tabIds = tabsTrayStore.state.mode.selectedTabs.map { it.id }.filter { it in groupTabIds }
++                if (tabIds.isNotEmpty()) {
++                    tabsTrayStore.dispatch(
++                        TabGroupAction.SelectedTabsRemovedFromGroup(
++                            groupId = expandedGroup.id,
++                            tabIds = tabIds,
++                            emptiesGroup = tabIds.size == groupTabIds.size,
++                        )
++                    )
++                }
++            },
+             onTabClose = { tab ->
+                 tabsTrayStore.dispatch(TabGroupAction.TabClosed(tab = tab, group = expandedGroup))
+             },

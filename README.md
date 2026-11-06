@@ -1,16 +1,17 @@
 # Firefox+
 
-Personal build of Firefox for Android, built from Mozilla's official release source with three small patches:
+Personal build of Firefox for Android, built from Mozilla's official release source with these patches:
 
 | Patch | What it changes |
 |---|---|
 | `0001-thumbnail-cache-8gb.patch` | Tab thumbnail cache limit raised from 100 MB to 8 GB, so previews are no longer evicted after ~100 tabs. |
 | `0002-tab-search-select-all.patch` | Tab search gets a "Select all (N)" button: selects every matching tab in tab order and returns to the tab tray, ready for Add to group. |
 | `0003-separate-app-identity.patch` | App ID `org.mozilla.firefox_plus` and name "Firefox+", so it installs next to the Play Store Firefox. |
+| `0004-group-tab-select-move-remove.patch` | Inside an open tab group: long-press selects tabs, with All/None, Move (to another or a new group) and Remove (out of the group). A group emptied this way is removed. |
 
 ## How builds happen
 
-`.github/workflows/build.yml` runs weekly (Wednesdays). It picks the newest `FIREFOX-ANDROID_*_RELEASE` tag, applies the patches, builds with Mozilla's prebuilt engine (artifact build), signs the APK and publishes it as release `v<version>`. Already-built versions are skipped. Run it by hand under Actions → Build Firefox+ → Run workflow.
+`.github/workflows/build.yml` runs weekly (Wednesdays). It picks the newest `FIREFOX-ANDROID_*_RELEASE` tag, applies the patches, builds with Mozilla's prebuilt engine (artifact build), signs the APK and publishes it as release `v<version>`. Already-built versions are skipped. After changing the patches, raise the number in `REVISION` so the rebuild gets a new release name (`v<version>-r<N>`) that Obtainium picks up as an update. Run it by hand under Actions → Build Firefox+ → Run workflow.
 
 Required repository secrets: `KEYSTORE_B64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`.
 

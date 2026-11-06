@@ -45,6 +45,8 @@ jobs:
             tag="FIREFOX-ANDROID_$(echo "$tag" | tr '.' '_')_RELEASE"
           fi
           version=$(echo "$tag" | sed 's/^FIREFOX-ANDROID_//; s/_RELEASE$//' | tr '_' '.')
+          revision=$(tr -dc '0-9' < REVISION)
+          if [ "$revision" -gt 1 ]; then version="$version-r$revision"; fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [ "$FORCE" != "true" ] && gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -157,4 +159,4 @@ jobs:
           gh release delete "$v" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$v" out/*.apk --repo "$GITHUB_REPOSITORY" \
             --title "Firefox+ ${{ steps.pick.outputs.version }}" \
-            --notes "Firefox for Android ${{ steps.pick.outputs.version }} (${{ steps.pick.outputs.tag }}) with: thumbnail cache raised to 8 GB, Select all in tab search, separate app ID."
+            --notes "Built from ${{ steps.pick.outputs.tag }} with the patches in patches/ (see README)."
