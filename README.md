@@ -8,6 +8,7 @@ Personal build of Firefox for Android, built from Mozilla's official release sou
 | `0002-tab-search-select-all.patch` | Tab search gets a "Select all (N)" button: selects every matching tab in tab order and returns to the tab tray, ready for Add to group. |
 | `0003-separate-app-identity.patch` | App ID `org.mozilla.firefox_plus` and name "Firefox+", so it installs next to the Play Store Firefox. |
 | `0004-group-tab-select-move-remove.patch` | Inside an open tab group: long-press selects tabs, with All/None, Move (to another or a new group) and Remove (out of the group). A group emptied this way is removed. |
+| `0005-open-current-tab-group.patch` | Opening the tab tray while on a tab that's in a group goes straight into that group, scrolled to the current tab. Back still leads to the overview. |
 
 ## How builds happen
 
