@@ -1,0 +1,68 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
+index c6ec21b8..1f6f5c55 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
+@@ -169,6 +169,19 @@ private fun ViewTabGroupHeader(
+ 
+         Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static200 + FirefoxTheme.layout.space.static25))
+ 
++        IconButton(
++            onClick = actions.onSearchClick,
++            contentDescription = stringResource(id = R.string.tab_manager_open_tab_search),
++        ) {
++            Icon(
++                painter = painterResource(id = iconsR.drawable.mozac_ic_search_24),
++                contentDescription = null,
++                tint = MaterialTheme.colorScheme.onSurface,
++            )
++        }
++
++        Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))
++
+         val onAddNewTabClick = actions.onAddNewTabClick
+         if (onAddNewTabClick != null) {
+             AddTabToGroupButton(onClick = onAddNewTabClick)
+@@ -404,4 +417,5 @@ data class ExpandedTabGroupActions(
+     val onSelectNoneInGroupClick: () -> Unit = {},
+     val onMoveSelectedClick: () -> Unit = {},
+     val onRemoveSelectedFromGroupClick: () -> Unit = {},
++    val onSearchClick: () -> Unit = {},
+ )
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabSearchActionReducer.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabSearchActionReducer.kt
+index aa873ba0..9adb6921 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabSearchActionReducer.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabSearchActionReducer.kt
+@@ -5,6 +5,7 @@
+ package org.mozilla.fenix.tabstray.redux.reducer
+ 
+ import org.mozilla.fenix.tabstray.data.TabsTrayItem
++import org.mozilla.fenix.tabstray.navigation.TabManagerNavDestination
+ import org.mozilla.fenix.tabstray.redux.action.TabSearchAction
+ import org.mozilla.fenix.tabstray.redux.state.TabSearchState
+ import org.mozilla.fenix.tabstray.redux.state.TabsTrayState
+@@ -72,7 +73,10 @@ object TabSearchActionReducer {
+                     selectedTabGroups = emptySet(),
+                 ),
+             tabSearchState = TabSearchState(query = "", searchResults = emptyList()),
+-            backStack = state.popBackStack(),
++            backStack =
++                state.backStack.filterNot {
++                    it is TabManagerNavDestination.TabSearch || it is TabManagerNavDestination.ExpandedTabGroup
++                },
+         )
+     }
+ }
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
+index 3ba70ebb..1aa04d32 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
+@@ -603,6 +603,9 @@ class TabManagementFragment : Fragment() {
+             onExitSelectModeClick = {
+                 tabsTrayStore.dispatch(TabsTrayAction.ExitSelectMode)
+             },
++            onSearchClick = {
++                tabsTrayStore.dispatch(TabsTrayAction.TabSearchClicked)
++            },
+             onSelectAllInGroupClick = {
+                 tabsTrayStore.dispatch(TabGroupAction.GroupTabsSelectionChanged(group = expandedGroup, selected = true))
+             },
