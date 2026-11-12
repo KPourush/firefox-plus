@@ -1,0 +1,296 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowReducer.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowReducer.kt
+index 58371cb1..201058b9 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowReducer.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowReducer.kt
+@@ -47,6 +47,7 @@ object TabGroupFlowReducer {
+             is TabGroupAction.SelectedTabsAddedToGroup,
+             is TabGroupAction.SelectedTabsRemovedFromGroup,
+             is TabGroupAction.GroupTabsSelectionChanged,
++            is TabGroupAction.SortDuplicatesClicked,
+             is TabGroupAction.TabClosed,
+             is TabGroupAction.TabGroupClicked,
+             is TabGroupAction.ThemeChanged,
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowTelemetryMiddleware.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowTelemetryMiddleware.kt
+index fa9d9812..2f15e663 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowTelemetryMiddleware.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/flow/TabGroupFlowTelemetryMiddleware.kt
+@@ -67,6 +67,7 @@ class TabGroupFlowTelemetryMiddleware : Middleware<TabGroupFlowState, TabGroupAc
+             is TabGroupAction.SelectedTabsAddedToGroup,
+             is TabGroupAction.SelectedTabsRemovedFromGroup,
+             is TabGroupAction.GroupTabsSelectionChanged,
++            is TabGroupAction.SortDuplicatesClicked,
+             is TabGroupAction.TabClosed,
+             is TabGroupAction.TabGroupClicked,
+             is TabGroupAction.UngroupRequested,
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabGroupAction.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabGroupAction.kt
+index 56b23abb..41993899 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabGroupAction.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/action/TabGroupAction.kt
+@@ -214,4 +214,7 @@ sealed interface TabGroupAction : TabsTrayAction {
+         val group: TabsTrayItem.TabGroup,
+         val selected: Boolean,
+     ) : TabGroupAction
++
++    /** Fired when the user asks to move every newer duplicate tab next to its oldest copy. */
++    data object SortDuplicatesClicked : TabGroupAction, TabsStorageAction
+ }
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
+index 57d84815..279ff32b 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
+@@ -101,6 +101,7 @@ class TabStorageMiddleware(
+     private val dateTimeProvider: DateTimeProvider = DefaultDateTimeProvider(),
+     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+     private val mainScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
++    private val onDuplicatesSorted: (Int) -> Unit = {},
+ ) : Middleware<TabsTrayState, TabsTrayAction> {
+ 
+     private val combinedDataFlow: StateFlow<CombinedTabData?> =
+@@ -218,6 +219,13 @@ class TabStorageMiddleware(
+             // todo-bug-2069535: Hook up to the coordinator storage layer when it is ready
+             is TabGroupAction.TabAddedToNewTabGroup -> {}
+ 
++            is TabGroupAction.SortDuplicatesClicked -> {
++                scope.launch {
++                    val count = sortDuplicates()
++                    mainScope.launch { onDuplicatesSorted(count) }
++                }
++            }
++
+             is TabGroupAction.SelectedTabsRemovedFromGroup -> {
+                 scope.launch {
+                     if (action.emptiesGroup) {
+@@ -481,19 +489,116 @@ class TabStorageMiddleware(
+         tabIds: List<String>,
+         store: Store<TabsTrayState, TabsTrayAction>,
+     ) {
+-        val lastTabInGroupId = store.state.lastTabInGroupId(groupId = groupId)
+-        // Sequence the selected tabs after the group's other tabs, if it has any.
+-        lastTabInGroupId?.let {
+-            sequenceGroupedTabsTogether(
++        val withDuplicates = withDuplicatesOf(tabIds)
++        if (withDuplicates.size == tabIds.size) {
++            val lastTabInGroupId = store.state.lastTabInGroupId(groupId = groupId)
++            // Sequence the selected tabs after the group's other tabs, if it has any.
++            lastTabInGroupId?.let {
++                sequenceGroupedTabsTogether(
++                    tabIds = tabIds,
++                    targetTabId = lastTabInGroupId,
++                )
++            }
++
++            tabGroupRepository.addTabsToTabGroup(
++                tabGroupId = groupId,
+                 tabIds = tabIds,
+-                targetTabId = lastTabInGroupId,
+             )
++            return
+         }
+ 
+-        tabGroupRepository.addTabsToTabGroup(
+-            tabGroupId = groupId,
+-            tabIds = tabIds,
+-        )
++        val movedIds = withDuplicates.toSet()
++        val emptiedGroupIds = groupsEmptiedBy(movedIds = movedIds, targetGroupId = groupId)
++        val lastRemainingTabId = store.state.tabIdsForGroup(groupId = groupId).lastOrNull { it !in movedIds }
++        if (lastRemainingTabId != null) {
++            sequenceGroupedTabsTogether(tabIds = withDuplicates, targetTabId = lastRemainingTabId)
++        } else {
++            sequenceGroupedTabsTogether(tabIds = withDuplicates.drop(1), targetTabId = withDuplicates.first())
++        }
++        tabGroupRepository.addTabsToTabGroup(tabGroupId = groupId, tabIds = withDuplicates)
++        if (emptiedGroupIds.isNotEmpty()) {
++            tabGroupRepository.deleteTabGroupsById(ids = emptiedGroupIds)
++        }
++    }
++
++    /**
++     * Returns [tabIds] with every other normal tab showing the same page placed directly before the tab it
++     * duplicates.
++     */
++    private fun withDuplicatesOf(tabIds: List<String>): List<String> {
++        val tabs = combinedDataFlow.value?.tabs ?: return tabIds
++        val addedIds = tabIds.toSet()
++        val tabsById = tabs.associateBy { it.id }
++        val othersByKey =
++            tabs
++                .filter { !it.content.private && it.id !in addedIds }
++                .mapNotNull { tab -> duplicateKey(tab.content.url)?.let { it to tab.id } }
++                .groupBy({ it.first }, { it.second })
++        val result = LinkedHashSet<String>()
++        tabIds.forEach { id ->
++            val tab = tabsById[id]
++            if (tab != null && !tab.content.private) {
++                duplicateKey(tab.content.url)?.let { key -> othersByKey[key]?.let { result.addAll(it) } }
++            }
++            result.add(id)
++        }
++        return result.toList()
++    }
++
++    /** Returns the IDs of groups other than [targetGroupId] whose tabs are all in [movedIds]. */
++    private fun groupsEmptiedBy(
++        movedIds: Set<String>,
++        targetGroupId: String?,
++    ): List<String> {
++        val assignments = combinedDataFlow.value?.tabGroupAssignments ?: return emptyList()
++        return assignments.entries
++            .groupBy({ it.value }, { it.key })
++            .filter { (groupId, members) -> groupId != targetGroupId && members.all { it in movedIds } }
++            .keys
++            .toList()
++    }
++
++    /**
++     * Moves every newer copy of a page next to its oldest copy and into that copy's group.
++     *
++     * @return The number of tabs that were moved.
++     */
++    private suspend fun sortDuplicates(): Int {
++        val data = combinedDataFlow.value ?: return 0
++        val assignments = data.tabGroupAssignments
++        val duplicateSets =
++            data.tabs
++                .filter { !it.content.private }
++                .mapNotNull { tab -> duplicateKey(tab.content.url)?.let { it to tab } }
++                .groupBy({ it.first }, { it.second })
++                .values
++                .filter { it.size > 1 }
++        if (duplicateSets.isEmpty()) return 0
++
++        val newerIds = duplicateSets.flatMap { copies -> copies.sortedBy { it.createdAt }.drop(1).map { it.id } }
++        val emptiedGroupIds =
++            groupsEmptiedBy(movedIds = newerIds.toSet(), targetGroupId = null).filter { groupId ->
++                duplicateSets.none { copies -> assignments[copies.minBy { it.createdAt }.id] == groupId }
++            }
++
++        duplicateSets.forEach { copies ->
++            val sorted = copies.sortedBy { it.createdAt }
++            val oldest = sorted.first()
++            val newer = sorted.drop(1).map { it.id }
++            sequenceGroupedTabsTogether(tabIds = newer, targetTabId = oldest.id)
++            val groupId = assignments[oldest.id]
++            if (groupId != null) {
++                tabGroupRepository.addTabsToTabGroup(tabGroupId = groupId, tabIds = newer)
++            } else {
++                newer.filter { it in assignments }.takeIf { it.isNotEmpty() }?.let {
++                    tabGroupRepository.deleteTabGroupAssignmentsById(tabIds = it)
++                }
++            }
++        }
++        if (emptiedGroupIds.isNotEmpty()) {
++            tabGroupRepository.deleteTabGroupsById(ids = emptiedGroupIds)
++        }
++        return newerIds.size
+     }
+ 
+     private suspend fun handleGroupAddedToTab(
+@@ -522,6 +627,11 @@ class TabStorageMiddleware(
+         tabId: String,
+         store: Store<TabsTrayState, TabsTrayAction>,
+     ) {
++        if (withDuplicatesOf(listOf(tabId)).size > 1) {
++            addTabItemsToTabGroup(groupId = groupId, tabIds = listOf(tabId), store = store)
++            return
++        }
++
+         val lastTabInGroupId = store.state.lastTabInGroupId(groupId = groupId)
+ 
+         // Sequence this tab next to the group's other tabs, if it has any.
+@@ -878,6 +988,12 @@ class TabStorageMiddleware(
+         )
+ }
+ 
++/** Key under which two URLs count as the same page, or null for pages that are never treated as duplicates. */
++private fun duplicateKey(url: String): String? {
++    if (url.isBlank() || url.startsWith("about:")) return null
++    return url.substringBefore('#').trimEnd('/')
++}
++
+ /** Fetches a list of tab IDs in the group with [groupId]. Returns an empty list if the group is empty or not found. */
+ private fun TabsTrayState.tabIdsForGroup(groupId: String): List<String> =
+     tabGroupState.groups.find { it.id == groupId }?.tabs?.map { it.id } ?: emptyList()
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt
+index c5cf6ec7..d06b9040 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt
+@@ -78,6 +78,7 @@ object TabGroupActionReducer {
+                         }
+                 )
+             }
++            is TabGroupAction.SortDuplicatesClicked -> state
+             is TabGroupAction.SelectedTabsRemovedFromGroup ->
+                 state.copy(
+                     mode = TabsTrayState.Mode.Normal,
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
+index 1aa04d32..915ba1f5 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
+@@ -13,6 +13,7 @@ import android.view.Gravity
+ import android.view.LayoutInflater
+ import android.view.View
+ import android.view.ViewGroup
++import android.widget.Toast
+ import androidx.activity.compose.BackHandler
+ import androidx.activity.result.ActivityResultLauncher
+ import androidx.annotation.ColorInt
+@@ -796,6 +797,17 @@ class TabManagementFragment : Fragment() {
+                             moveTabsUseCase = requireComponents.useCases.tabsUseCases.moveTabs,
+                             fenixBrowserUseCases = requireComponents.useCases.fenixBrowserUseCases,
+                             mainScope = lifecycleScope,
++                            onDuplicatesSorted = { count ->
++                                context?.let {
++                                    val message =
++                                        if (count == 0) {
++                                            "No duplicate tabs found"
++                                        } else {
++                                            "Moved $count duplicate tabs next to their older copies"
++                                        }
++                                    Toast.makeText(it, message, Toast.LENGTH_SHORT).show()
++                                }
++                            },
+                         ),
+                         TabManagerUiStateStorageMiddleware(
+                             uiStateRepository =
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/fab/TabManagerFloatingToolbar.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/fab/TabManagerFloatingToolbar.kt
+index 5805b066..fc73f0ef 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/fab/TabManagerFloatingToolbar.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/fab/TabManagerFloatingToolbar.kt
+@@ -124,6 +124,9 @@ internal fun TabManagerFloatingToolbar(
+                         onSearchClicked = {
+                             onAction(TabsTrayAction.TabSearchClicked)
+                         },
++                        onSortDuplicatesClicked = {
++                            onAction(TabGroupAction.SortDuplicatesClicked)
++                        },
+                     )
+                 }
+             }
+@@ -161,6 +164,7 @@ private fun FloatingToolbarActions(
+     onAccountSettingsClick: () -> Unit,
+     onDeleteAllTabsClick: () -> Unit,
+     onSearchClicked: () -> Unit,
++    onSortDuplicatesClicked: () -> Unit,
+ ) {
+     var showBottomAppBarMenu by remember { mutableStateOf(false) }
+     var showCloseAllTabsDialog by remember { mutableStateOf(false) }
+@@ -208,6 +212,18 @@ private fun FloatingToolbarActions(
+                 }
+             }
+ 
++            if (state.selectedPage == Page.NormalTabs) {
++                IconButton(
++                    onClick = onSortDuplicatesClicked,
++                    contentDescription = "Sort duplicate tabs",
++                ) {
++                    Icon(
++                        painter = painterResource(iconsR.drawable.mozac_ic_sort_24),
++                        contentDescription = null,
++                    )
++                }
++            }
++
+             IconButton(
+                 onClick = {
+                     onMenuShown()

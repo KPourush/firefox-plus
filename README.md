@@ -12,6 +12,7 @@ Personal build of Firefox for Android, built from Mozilla's official release sou
 | `0006-tab-search-in-open-group.patch` | Search button in the header of an open tab group. Back from search returns to the group; Select all returns to the overview with the matches selected, ready for Add to group. |
 | `0007-swipe-within-tab-group.patch` | Toolbar swipe follows the tab tray order: through a group's tabs in group order, then on to the next group or tab. It wraps around at the ends, so swiping never stops. |
 | `0008-tab-list-fast-scroller.patch` | Draggable scrollbar on the right edge of the tab list, in the overview and inside open groups (list and grid view). Hold the thumb and drag to jump through hundreds of tabs. |
+| `0009-duplicate-tabs.patch` | Adding a tab to a group also pulls in any other copy of the same page (from anywhere), placed right before it at the end of the group. A sort button next to tab search moves every newer copy next to its oldest copy and into that copy's group. Pages count as the same when their address matches, ignoring the part after `#` and a trailing `/`. Nothing is closed automatically. |
 
 ## How builds happen
 
