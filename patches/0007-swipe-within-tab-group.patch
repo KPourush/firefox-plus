@@ -1,43 +1,82 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
-index 3d806855..8d45935f 100644
+index 3d806855..a76a8664 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
-@@ -221,6 +221,12 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+@@ -210,6 +210,26 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+         setupShakeDetection()
+     }
+ 
++    private fun tabTrayOrder(components: Components): List<String>? {
++        val snapshot = components.tabDataCoordinator.tabsSnapshot.value ?: return null
++        val groupsById = snapshot.tabGroups.associateBy { it.id }
++        val emittedGroups = hashSetOf<String>()
++        val order = mutableListOf<String>()
++        snapshot.normalTabs.forEach { tab ->
++            val group = tab.tabGroupId?.let { groupsById[it] }
++            when {
++                group != null -> {
++                    if (!group.closed && emittedGroups.add(group.id)) {
++                        order.addAll(group.tabIds)
++                    }
++                }
++                snapshot.inactiveTabsEnabled && tab.inactive -> {}
++                else -> order.add(tab.id)
++            }
++        }
++        return order
++    }
++
+     private fun setupToolbarSwipeBehavior(settings: Settings, components: Components) {
+         if (!settings.isTabStripEnabled && settings.isSwipeToolbarToSwitchTabsEnabled) {
+             binding.gestureLayout.addGestureListener(
+@@ -221,6 +241,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
                      navBarLayoutRect = { browserNavigationBar?.layout?.getRectWithScreenLocation() },
                      store = components.core.store,
                      selectTabUseCase = components.useCases.tabsUseCases.selectTab,
-+                    groupTabIdsOf = { tabId ->
-+                        components.tabDataCoordinator.tabsSnapshot.value
-+                            ?.openTabGroups
-+                            ?.firstOrNull { tabId in it.tabIds }
-+                            ?.tabIds
-+                    },
++                    normalTabSwipeOrder = { tabTrayOrder(components) },
                      onSwipeStarted = {
                          thumbnailsFeature
                              .get()
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt
-index ee3f5a7c..12f6ae52 100644
+index ee3f5a7c..754246e9 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt
 @@ -53,6 +53,7 @@ class ToolbarHorizontalGesturesHandler(
      private val selectTabUseCase: TabsUseCases.SelectTabUseCase,
      private val onSwipeStarted: () -> Unit,
      private val onTabSwitched: (TabSessionState) -> Unit = {},
-+    private val groupTabIdsOf: (String) -> List<String>? = { null },
++    private val normalTabSwipeOrder: () -> List<String>? = { null },
  ) : SwipeGestureListener {
  
      private enum class GestureDirection {
-@@ -177,9 +178,15 @@ class ToolbarHorizontalGesturesHandler(
+@@ -76,6 +77,8 @@ class ToolbarHorizontalGesturesHandler(
+ 
+     private var gestureDirection = GestureDirection.LEFT_TO_RIGHT
+ 
++    private var swipeOrder: List<String>? = null
++
+     override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
+         val dx = next.x - start.x
+         val dy = next.y - start.y
+@@ -93,6 +96,7 @@ class ToolbarHorizontalGesturesHandler(
+                 abs(dx) > touchSlop &&
+                 abs(dy) < abs(dx)
+         ) {
++            swipeOrder = normalTabSwipeOrder()
+             preparePreview(getDestination())
+             onSwipeStarted.invoke()
+             true
+@@ -177,9 +181,15 @@ class ToolbarHorizontalGesturesHandler(
      private fun getDestination(): Destination {
          val isLtr = activity.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_LTR
          val currentTab = store.state.selectedTab ?: return Destination.None
-+        val groupTabIds = if (currentTab.content.private) null else groupTabIdsOf(currentTab.id)
++        val order = if (currentTab.content.private) null else swipeOrder?.takeIf { currentTab.id in it }
          val tabs =
 -            store.state.getNormalOrPrivateTabs(currentTab.content.private).filter {
 -                it.isActive(maxActiveTime)
-+            if (groupTabIds != null) {
++            if (order != null) {
 +                val tabsById = store.state.tabs.associateBy { it.id }
-+                groupTabIds.mapNotNull { tabsById[it] }
++                order.mapNotNull { tabsById[it] }
 +            } else {
 +                store.state.getNormalOrPrivateTabs(currentTab.content.private).filter {
 +                    it.isActive(maxActiveTime)
@@ -45,3 +84,14 @@ index ee3f5a7c..12f6ae52 100644
              }
  
          val currentIndex = tabs.indexOfFirst { it.id == currentTab.id }
+@@ -203,8 +213,8 @@ class ToolbarHorizontalGesturesHandler(
+                         }
+                 }
+ 
+-            if (index < tabs.count() && index >= 0) {
+-                Destination.Tab(tabs.elementAt(index))
++            if (tabs.size > 1) {
++                Destination.Tab(tabs[Math.floorMod(index, tabs.size)])
+             } else {
+                 Destination.None
+             }
