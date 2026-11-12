@@ -1,0 +1,47 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+index 3d806855..8d45935f 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
+@@ -221,6 +221,12 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+                     navBarLayoutRect = { browserNavigationBar?.layout?.getRectWithScreenLocation() },
+                     store = components.core.store,
+                     selectTabUseCase = components.useCases.tabsUseCases.selectTab,
++                    groupTabIdsOf = { tabId ->
++                        components.tabDataCoordinator.tabsSnapshot.value
++                            ?.openTabGroups
++                            ?.firstOrNull { tabId in it.tabIds }
++                            ?.tabIds
++                    },
+                     onSwipeStarted = {
+                         thumbnailsFeature
+                             .get()
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt
+index ee3f5a7c..12f6ae52 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt
+@@ -53,6 +53,7 @@ class ToolbarHorizontalGesturesHandler(
+     private val selectTabUseCase: TabsUseCases.SelectTabUseCase,
+     private val onSwipeStarted: () -> Unit,
+     private val onTabSwitched: (TabSessionState) -> Unit = {},
++    private val groupTabIdsOf: (String) -> List<String>? = { null },
+ ) : SwipeGestureListener {
+ 
+     private enum class GestureDirection {
+@@ -177,9 +178,15 @@ class ToolbarHorizontalGesturesHandler(
+     private fun getDestination(): Destination {
+         val isLtr = activity.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_LTR
+         val currentTab = store.state.selectedTab ?: return Destination.None
++        val groupTabIds = if (currentTab.content.private) null else groupTabIdsOf(currentTab.id)
+         val tabs =
+-            store.state.getNormalOrPrivateTabs(currentTab.content.private).filter {
+-                it.isActive(maxActiveTime)
++            if (groupTabIds != null) {
++                val tabsById = store.state.tabs.associateBy { it.id }
++                groupTabIds.mapNotNull { tabsById[it] }
++            } else {
++                store.state.getNormalOrPrivateTabs(currentTab.content.private).filter {
++                    it.isActive(maxActiveTime)
++                }
+             }
+ 
+         val currentIndex = tabs.indexOfFirst { it.id == currentTab.id }

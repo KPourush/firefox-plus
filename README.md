@@ -10,6 +10,7 @@ Personal build of Firefox for Android, built from Mozilla's official release sou
 | `0004-group-tab-select-move-remove.patch` | Inside an open tab group: long-press selects tabs, with All/None, Move (to another or a new group) and Remove (out of the group). A group emptied this way is removed. |
 | `0005-open-current-tab-group.patch` | Opening the tab tray while on a tab that's in a group goes straight into that group, scrolled to the current tab. Back still leads to the overview. |
 | `0006-tab-search-in-open-group.patch` | Search button in the header of an open tab group. Back from search returns to the group; Select all returns to the overview with the matches selected, ready for Add to group. |
+| `0007-swipe-within-tab-group.patch` | Swiping the toolbar while on a grouped tab moves through that group's tabs in group order and stops at the group's ends. Ungrouped tabs swipe as before. |
 
 ## How builds happen
 
