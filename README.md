@@ -11,6 +11,7 @@ Personal build of Firefox for Android, built from Mozilla's official release sou
 | `0005-open-current-tab-group.patch` | Opening the tab tray while on a tab that's in a group goes straight into that group, scrolled to the current tab. Back still leads to the overview. |
 | `0006-tab-search-in-open-group.patch` | Search button in the header of an open tab group. Back from search returns to the group; Select all returns to the overview with the matches selected, ready for Add to group. |
 | `0007-swipe-within-tab-group.patch` | Toolbar swipe follows the tab tray order: through a group's tabs in group order, then on to the next group or tab. It wraps around at the ends, so swiping never stops. |
+| `0008-tab-list-fast-scroller.patch` | Draggable scrollbar on the right edge of the tab list, in the overview and inside open groups (list and grid view). Hold the thumb and drag to jump through hundreds of tabs. |
 
 ## How builds happen
 

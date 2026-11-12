@@ -1,0 +1,188 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt
+new file mode 100644
+index 00000000..58092c2e
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt
+@@ -0,0 +1,145 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++package org.mozilla.fenix.tabstray.ui.tabpage
++
++import androidx.compose.foundation.gestures.awaitEachGesture
++import androidx.compose.foundation.gestures.awaitFirstDown
++import androidx.compose.foundation.lazy.LazyListState
++import androidx.compose.foundation.lazy.grid.LazyGridState
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableFloatStateOf
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.drawWithContent
++import androidx.compose.ui.geometry.CornerRadius
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.geometry.Size
++import androidx.compose.ui.input.pointer.PointerEventPass
++import androidx.compose.ui.input.pointer.pointerInput
++import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.ui.unit.dp
++import kotlin.math.abs
++import kotlin.math.roundToInt
++import kotlinx.coroutines.launch
++
++private class FastScrollInfo(
++    val firstVisible: Int,
++    val visibleCount: Int,
++    val totalCount: Int,
++    val scrollable: Boolean,
++) {
++    val maxFirstVisible: Int
++        get() = (totalCount - visibleCount).coerceAtLeast(1)
++
++    val fraction: Float
++        get() = (firstVisible.toFloat() / maxFirstVisible).coerceIn(0f, 1f)
++}
++
++/** Draggable scrollbar thumb along the end edge of a tab list. */
++@Composable
++internal fun tabFastScroller(state: LazyListState): Modifier =
++    fastScroller(
++        info = {
++            FastScrollInfo(
++                firstVisible = state.firstVisibleItemIndex,
++                visibleCount = state.layoutInfo.visibleItemsInfo.size,
++                totalCount = state.layoutInfo.totalItemsCount,
++                scrollable = state.canScrollForward || state.canScrollBackward,
++            )
++        },
++        scrollToItem = { state.scrollToItem(it) },
++    )
++
++/** Draggable scrollbar thumb along the end edge of a tab grid. */
++@Composable
++internal fun tabFastScroller(state: LazyGridState): Modifier =
++    fastScroller(
++        info = {
++            FastScrollInfo(
++                firstVisible = state.firstVisibleItemIndex,
++                visibleCount = state.layoutInfo.visibleItemsInfo.size,
++                totalCount = state.layoutInfo.totalItemsCount,
++                scrollable = state.canScrollForward || state.canScrollBackward,
++            )
++        },
++        scrollToItem = { state.scrollToItem(it) },
++    )
++
++@Composable
++private fun fastScroller(
++    info: () -> FastScrollInfo,
++    scrollToItem: suspend (Int) -> Unit,
++): Modifier {
++    val scope = rememberCoroutineScope()
++    val density = LocalDensity.current
++    val touchWidth = with(density) { 40.dp.toPx() }
++    val touchExtra = with(density) { 16.dp.toPx() }
++    val thumbHeight = with(density) { 56.dp.toPx() }
++    val thumbWidth = with(density) { 6.dp.toPx() }
++    val activeThumbWidth = with(density) { 10.dp.toPx() }
++    val edgeInset = with(density) { 4.dp.toPx() }
++    val color = MaterialTheme.colorScheme.onSurfaceVariant
++    var dragging by remember { mutableStateOf(false) }
++    var dragFraction by remember { mutableFloatStateOf(0f) }
++
++    return Modifier.pointerInput(Unit) {
++            awaitEachGesture {
++                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
++                val start = info()
++                val track = size.height - thumbHeight
++                if (!start.scrollable || track <= 0f || down.position.x < size.width - touchWidth) {
++                    return@awaitEachGesture
++                }
++                val thumbTop = start.fraction * track
++                if (down.position.y < thumbTop - touchExtra || down.position.y > thumbTop + thumbHeight + touchExtra) {
++                    return@awaitEachGesture
++                }
++                val grabOffset = (down.position.y - thumbTop).coerceIn(0f, thumbHeight)
++                var started = false
++                try {
++                    while (true) {
++                        val event = awaitPointerEvent(PointerEventPass.Initial)
++                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
++                        if (!change.pressed) {
++                            if (started) change.consume()
++                            break
++                        }
++                        if (!started && abs(change.position.y - down.position.y) > viewConfiguration.touchSlop) {
++                            started = true
++                            dragging = true
++                        }
++                        if (started) {
++                            change.consume()
++                            val fraction = ((change.position.y - grabOffset) / track).coerceIn(0f, 1f)
++                            dragFraction = fraction
++                            val target = (fraction * info().maxFirstVisible).roundToInt()
++                            scope.launch { scrollToItem(target) }
++                        }
++                    }
++                } finally {
++                    dragging = false
++                }
++            }
++        }
++        .drawWithContent {
++            drawContent()
++            val current = info()
++            val track = size.height - thumbHeight
++            if (!current.scrollable || track <= 0f) return@drawWithContent
++            val fraction = if (dragging) dragFraction else current.fraction
++            val width = if (dragging) activeThumbWidth else thumbWidth
++            drawRoundRect(
++                color = color.copy(alpha = if (dragging) 0.9f else 0.6f),
++                topLeft = Offset(size.width - width - edgeInset, fraction * track),
++                size = Size(width, thumbHeight),
++                cornerRadius = CornerRadius(width / 2),
++            )
++        }
++}
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
+index 4db06b68..63a2abce 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
+@@ -599,6 +599,7 @@ private fun ReorderableTabGrid(
+             columns = GridCells.Fixed(count = columns),
+             modifier =
+                 modifier
++                    .then(tabFastScroller(gridState))
+                     .fillMaxSize()
+                     .thenConditional(
+                         Modifier.detectGridPressAndDragGestures(
+@@ -754,7 +755,7 @@ private fun InteractableTabGrid(
+         LazyVerticalGrid(
+             columns = GridCells.Fixed(count = columns),
+             modifier =
+-                modifier.fillMaxSize().semantics {
++                modifier.then(tabFastScroller(gridState)).fillMaxSize().semantics {
+                     tabGridColumnCount = columns
+                     testTag = TabsTrayTestTag.TAB_GRID
+                     collectionInfo = collectionSemantics.collectionInfo
+@@ -1284,6 +1285,7 @@ private fun InteractableTabList(
+         LazyColumn(
+             modifier =
+                 modifier
++                    .then(tabFastScroller(state))
+                     .width(FirefoxTheme.layout.size.containerMaxWidth)
+                     .padding(horizontal = horizontalPadding)
+                     .background(MaterialTheme.colorScheme.surface)
+@@ -1607,6 +1609,7 @@ private fun ReorderableTabList(
+         LazyColumn(
+             modifier =
+                 modifier
++                    .then(tabFastScroller(state))
+                     .width(FirefoxTheme.layout.size.containerMaxWidth)
+                     .padding(horizontal = horizontalPadding)
+                     .background(MaterialTheme.colorScheme.surface)
