@@ -13,6 +13,7 @@ Personal build of Firefox for Android, built from Mozilla's official release sou
 | `0007-swipe-within-tab-group.patch` | Toolbar swipe follows the tab tray order: through a group's tabs in group order, then on to the next group or tab. It wraps around at the ends, so swiping never stops. |
 | `0008-tab-list-fast-scroller.patch` | Draggable scrollbar on the right edge of the tab list, in the overview and inside open groups (list and grid view). Hold the thumb and drag to jump through hundreds of tabs. |
 | `0009-duplicate-tabs.patch` | Adding a tab to a group also pulls in every other copy of the same page (from anywhere), placed right after the new tab, newest to oldest. A sort button next to tab search moves every older copy directly after its newest copy and into that copy's group (or out of any group if the newest is ungrouped); it shows a spinner while working and a message when done. Groups left empty are removed. Pages count as the same when their address matches, ignoring the part after `#` and a trailing `/`. Nothing is closed automatically. |
+| `0010-add-to-group-grid.patch` | The Add to group sheet shows groups as a 2-column grid of tiles (group color bar, name on up to 2 lines, tab count), with New group as the first tile. Groups you last added tabs to come first; closing, reading or renaming tabs doesn't change the order. |
 
 ## How builds happen
 
