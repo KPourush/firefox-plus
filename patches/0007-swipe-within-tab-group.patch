@@ -84,14 +84,3 @@ index ee3f5a7c..754246e9 100644
              }
  
          val currentIndex = tabs.indexOfFirst { it.id == currentTab.id }
-@@ -203,8 +213,8 @@ class ToolbarHorizontalGesturesHandler(
-                         }
-                 }
- 
--            if (index < tabs.count() && index >= 0) {
--                Destination.Tab(tabs.elementAt(index))
-+            if (tabs.size > 1) {
-+                Destination.Tab(tabs[Math.floorMod(index, tabs.size)])
-             } else {
-                 Destination.None
-             }
