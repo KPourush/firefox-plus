@@ -14,7 +14,7 @@ Personal build of Firefox for Android, built from Mozilla's official release sou
 | `0008-tab-list-fast-scroller.patch` | Draggable scrollbar on the right edge of the tab list, in the overview and inside open groups (list and grid view). Hold the thumb and drag to jump through hundreds of tabs. |
 | `0009-duplicate-tabs.patch` | Adding a tab to a group also pulls in every other copy of the same page (from anywhere), placed right after the new tab, newest to oldest. A sort button next to tab search moves every older copy directly after its newest copy and into that copy's group (or out of any group if the newest is ungrouped); it shows a spinner while working and a message when done. Groups left empty are removed. Pages count as the same when their address matches, ignoring the part after `#` and a trailing `/`. Nothing is closed automatically. |
 | `0010-add-to-group-grid.patch` | The Add to group sheet shows groups as a 2-column grid of tiles (group color bar, name on up to 2 lines, tab count), with New group as the first tile. Groups you last added tabs to come first; closing, reading or renaming tabs doesn't change the order. |
-| `0011-group-move-to-top-end.patch` | Inside an open tab group, the selection bar gets a second row: Move, Remove, To top, To end. To top / To end move the selected tabs to the beginning or end of the group, keeping their order, then leave selection and scroll to them. |
+| `0011-group-move-to-top-end.patch` | Inside an open tab group, the selection bar gets a second row: Move, Remove, To top, To end. To top / To end move the selected tabs to the beginning or end of the group, keeping their order, then leave selection; the list stays where it was. |
 
 ## How builds happen
 

@@ -1,5 +1,5 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
-index 1f6f5c55..14ba80e8 100644
+index 1f6f5c55..ed3771bd 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
 @@ -4,6 +4,7 @@
@@ -10,61 +10,91 @@ index 1f6f5c55..14ba80e8 100644
  import androidx.compose.foundation.layout.Column
  import androidx.compose.foundation.layout.PaddingValues
  import androidx.compose.foundation.layout.Row
-@@ -19,6 +20,13 @@ import androidx.compose.material3.Surface
+@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.layout.wrapContentHeight
++import androidx.compose.foundation.lazy.LazyListState
++import androidx.compose.foundation.lazy.grid.LazyGridState
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+@@ -19,6 +22,12 @@ import androidx.compose.material3.Surface
  import androidx.compose.material3.Text
  import androidx.compose.material3.TextButton
  import androidx.compose.runtime.Composable
++import androidx.compose.runtime.CompositionLocalProvider
 +import androidx.compose.runtime.LaunchedEffect
 +import androidx.compose.runtime.getValue
-+import androidx.compose.runtime.key
-+import androidx.compose.runtime.mutableIntStateOf
 +import androidx.compose.runtime.mutableStateOf
 +import androidx.compose.runtime.remember
 +import androidx.compose.runtime.setValue
  import androidx.compose.ui.Alignment
  import androidx.compose.ui.Modifier
  import androidx.compose.ui.platform.testTag
-@@ -69,6 +77,39 @@ fun ExpandedTabGroup(
+@@ -47,7 +56,9 @@ import org.mozilla.fenix.tabstray.data.createTabGroup
+ import org.mozilla.fenix.tabstray.redux.state.TabsTrayState
+ import org.mozilla.fenix.tabstray.ui.tabitems.LOREM_IPSUM
+ import org.mozilla.fenix.tabstray.ui.tabitems.TabGroupMenuButton
++import org.mozilla.fenix.tabstray.ui.tabpage.LocalTabLayoutScrollStateHolder
+ import org.mozilla.fenix.tabstray.ui.tabpage.TabLayout
++import org.mozilla.fenix.tabstray.ui.tabpage.TabLayoutScrollStateHolder
+ import org.mozilla.fenix.theme.FirefoxTheme
+ 
+ /**
+@@ -69,6 +80,51 @@ fun ExpandedTabGroup(
  ) {
      val selectedCount =
          if (selectionMode is TabsTrayState.Mode.Select) group.tabs.count { selectionMode.contains(it) } else 0
-+    // Firefox+: after "To top" / "To end", once the moved tabs show up at that end of the group, the tab layout
-+    // is recreated scrolled to that end.
-+    var scrollRequestCount by remember { mutableIntStateOf(0) }
-+    var scrollToStart by remember { mutableStateOf(true) }
-+    var pendingMove by remember { mutableStateOf<Pair<Boolean, Set<String>>?>(null) }
-+    val selectedIdsInGroup = {
-+        if (selectionMode is TabsTrayState.Mode.Select) {
-+            group.tabs.filter { selectionMode.contains(it) }.map { it.id }.toSet()
-+        } else {
-+            emptySet()
-+        }
++    // Firefox+: "To top" / "To end" keep the list where it is. The list would otherwise follow its first visible
++    // tab if that tab is one of the moved ones, so the position is put back once the move shows up.
++    val scrollHolder = remember { TabLayoutScrollStateHolder() }
++    var pendingMove by remember { mutableStateOf<PendingGroupMove?>(null) }
++    val captureMove = { toStart: Boolean ->
++        val movedIds =
++            if (selectionMode is TabsTrayState.Mode.Select) {
++                group.tabs.filter { selectionMode.contains(it) }.map { it.id }.toSet()
++            } else {
++                emptySet()
++            }
++        val (index, offset) =
++            when (val state = scrollHolder.state) {
++                is LazyListState -> state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset
++                is LazyGridState -> state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset
++                else -> -1 to 0
++            }
++        pendingMove = PendingGroupMove(toStart = toStart, tabIds = movedIds, index = index, offset = offset)
 +    }
 +    val headerActions =
 +        actions.copy(
 +            onMoveSelectedToStartClick = {
-+                pendingMove = true to selectedIdsInGroup()
++                captureMove(true)
 +                actions.onMoveSelectedToStartClick()
 +            },
 +            onMoveSelectedToEndClick = {
-+                pendingMove = false to selectedIdsInGroup()
++                captureMove(false)
 +                actions.onMoveSelectedToEndClick()
 +            },
 +        )
 +    LaunchedEffect(group.tabs, pendingMove) {
-+        val (toStart, movedIds) = pendingMove ?: return@LaunchedEffect
++        val move = pendingMove ?: return@LaunchedEffect
 +        val ids = group.tabs.map { it.id }
-+        val end = if (toStart) ids.take(movedIds.size) else ids.takeLast(movedIds.size)
-+        if (movedIds.isEmpty() || end.toSet() == movedIds) {
++        val end = if (move.toStart) ids.take(move.tabIds.size) else ids.takeLast(move.tabIds.size)
++        if (move.tabIds.isEmpty() || end.toSet() == move.tabIds) {
 +            pendingMove = null
-+            scrollToStart = toStart
-+            scrollRequestCount++
++            if (move.index >= 0) {
++                when (val state = scrollHolder.state) {
++                    is LazyListState -> state.scrollToItem(move.index, move.offset)
++                    is LazyGridState -> state.scrollToItem(move.index, move.offset)
++                    else -> {}
++                }
++            }
 +        }
 +    }
      Column(
          modifier =
              Modifier.testTag(TabsTrayTestTag.TAB_GROUP_BOTTOM_SHEET_ROOT)
-@@ -81,7 +122,7 @@ fun ExpandedTabGroup(
+@@ -81,7 +137,7 @@ fun ExpandedTabGroup(
              GroupSelectionHeader(
                  selectedCount = selectedCount,
                  allSelected = selectedCount == group.tabs.size,
@@ -73,7 +103,7 @@ index 1f6f5c55..14ba80e8 100644
              )
          } else {
              ViewTabGroupHeader(
-@@ -92,30 +133,37 @@ fun ExpandedTabGroup(
+@@ -92,30 +148,32 @@ fun ExpandedTabGroup(
              )
          }
  
@@ -101,7 +131,7 @@ index 1f6f5c55..14ba80e8 100644
 -            listHorizontalPadding = 0.dp, // The list layout should not add its own horizontal padding inside this view
 -            focusEnabled = true, // Drag and drop is not possible in this view, so focus should never be suppressed
 -        )
-+        key(scrollRequestCount) {
++        CompositionLocalProvider(LocalTabLayoutScrollStateHolder provides scrollHolder) {
 +            TabLayout(
 +                tabs = group.tabs,
 +                displayTabsInGrid = displayTabsInGrid,
@@ -109,12 +139,7 @@ index 1f6f5c55..14ba80e8 100644
 +                reorderingEnabled = true,
 +                displayTabGroupOnboarding = false,
 +                liveReorderEnabled = true,
-+                selectedItemIndex =
-+                    when {
-+                        scrollRequestCount == 0 -> group.initialScrollIndex
-+                        scrollToStart -> 0
-+                        else -> group.tabs.lastIndex
-+                    },
++                selectedItemIndex = group.initialScrollIndex,
 +                selectionMode = selectionMode,
 +                itemInteractionHandler = itemInteractionHandler,
 +                modifier = Modifier,
@@ -135,7 +160,7 @@ index 1f6f5c55..14ba80e8 100644
      }
  }
  
-@@ -207,39 +255,53 @@ private fun GroupSelectionHeader(
+@@ -207,39 +265,53 @@ private fun GroupSelectionHeader(
      allSelected: Boolean,
      actions: ExpandedTabGroupActions,
  ) {
@@ -212,7 +237,22 @@ index 1f6f5c55..14ba80e8 100644
      }
  }
  
-@@ -417,5 +479,7 @@ data class ExpandedTabGroupActions(
+@@ -389,6 +461,14 @@ private class ExpandedTabGroupPreviewProvider : PreviewParameterProvider<Expande
+     }
+ }
+ 
++/** Firefox+: a "To top" / "To end" move that is waiting to show up in the group, with the scroll position to keep. */
++private data class PendingGroupMove(
++    val toStart: Boolean,
++    val tabIds: Set<String>,
++    val index: Int,
++    val offset: Int,
++)
++
+ /**
+  * User interactions handled by the [ExpandedTabGroup] view.
+  *
+@@ -417,5 +497,7 @@ data class ExpandedTabGroupActions(
      val onSelectNoneInGroupClick: () -> Unit = {},
      val onMoveSelectedClick: () -> Unit = {},
      val onRemoveSelectedFromGroupClick: () -> Unit = {},
@@ -333,3 +373,66 @@ index 915ba1f5..64972be9 100644
              onRemoveSelectedFromGroupClick = {
                  val groupTabIds = expandedGroup.tabs.map { it.id }.toSet()
                  val tabIds = tabsTrayStore.state.mode.selectedTabs.map { it.id }.filter { it in groupTabIds }
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
+index 63a2abce..b5376a18 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
+@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.runtime.snapshotFlow
++import androidx.compose.runtime.staticCompositionLocalOf
+ import androidx.compose.runtime.toMutableStateList
+ import androidx.compose.runtime.withFrameNanos
+ import androidx.compose.ui.Alignment
+@@ -554,6 +555,8 @@ private fun ReorderableTabGrid(
+     onPrivacyReportTapped: (() -> Unit)? = null,
+ ) {
+     val gridState = rememberLazyGridState()
++    val firefoxPlusScrollHolder = LocalTabLayoutScrollStateHolder.current
++    SideEffect { firefoxPlusScrollHolder?.state = gridState }
+     val tabGridBottomPadding = dimensionResource(id = R.dimen.tab_tray_grid_bottom_padding)
+     val spacing = FirefoxTheme.layout.space.static200
+     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+@@ -690,6 +693,8 @@ private fun InteractableTabGrid(
+     dragProcessingState: TabsTrayState.DragProcessingState,
+ ) {
+     val gridState = rememberLazyGridState()
++    val firefoxPlusScrollHolder = LocalTabLayoutScrollStateHolder.current
++    SideEffect { firefoxPlusScrollHolder?.state = gridState }
+     val tabGridBottomPadding = dimensionResource(id = R.dimen.tab_tray_grid_bottom_padding)
+     val spacing = FirefoxTheme.layout.space.static200
+     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+@@ -1220,6 +1225,8 @@ private fun InteractableTabList(
+     dragProcessingState: TabsTrayState.DragProcessingState,
+ ) {
+     val state = rememberLazyListState()
++    val firefoxPlusScrollHolder = LocalTabLayoutScrollStateHolder.current
++    SideEffect { firefoxPlusScrollHolder?.state = state }
+     val tabListBottomPadding = dimensionResource(id = R.dimen.tab_tray_list_bottom_padding)
+     TabLayoutScrollHelper(
+         state = state,
+@@ -1558,6 +1565,8 @@ private fun ReorderableTabList(
+     onPrivacyReportTapped: (() -> Unit)? = null,
+ ) {
+     val state = rememberLazyListState()
++    val firefoxPlusScrollHolder = LocalTabLayoutScrollStateHolder.current
++    SideEffect { firefoxPlusScrollHolder?.state = state }
+     val tabListBottomPadding = dimensionResource(id = R.dimen.tab_tray_list_bottom_padding)
+ 
+     TabLayoutScrollHelper(
+@@ -2209,3 +2218,14 @@ private fun Modifier.drawHorizontalReorderIndicator(
+         }
+     )
+ }
++
++/**
++ * Firefox+: gives a parent access to the scroll state of the tab list or grid inside it, so it can keep the
++ * scroll position when tabs are moved around.
++ */
++class TabLayoutScrollStateHolder {
++    var state: ScrollableState? = null
++}
++
++/** Firefox+: [TabLayoutScrollStateHolder] that the tab list or grid registers its scroll state with, if any. */
++val LocalTabLayoutScrollStateHolder = staticCompositionLocalOf<TabLayoutScrollStateHolder?> { null }
