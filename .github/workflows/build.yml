@@ -13,6 +13,10 @@ on:
         description: "Rebuild even if a release for this version already exists"
         type: boolean
         default: false
+      draft:
+        description: "Publish as a hidden draft (Obtainium can't see it until it is published)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -154,9 +158,14 @@ jobs:
         if: steps.pick.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
+          # Weekly builds are published as hidden drafts. The weekly check reviews them and publishes them once they
+          # are fine, so the phone only gets checked builds.
+          DRAFT: ${{ github.event_name == 'schedule' || inputs.draft == true }}
         run: |
           v="v${{ steps.pick.outputs.version }}"
+          draft_flag=""
+          if [ "$DRAFT" = "true" ]; then draft_flag="--draft"; fi
           gh release delete "$v" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$v" out/*.apk --repo "$GITHUB_REPOSITORY" \
+          gh release create "$v" out/*.apk --repo "$GITHUB_REPOSITORY" $draft_flag \
             --title "Firefox+ ${{ steps.pick.outputs.version }}" \
             --notes "Built from ${{ steps.pick.outputs.tag }} with the patches in patches/ (see README)."

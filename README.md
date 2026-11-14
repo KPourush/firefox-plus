@@ -24,6 +24,8 @@ Personal build of Firefox for Android, built from Mozilla's official release sou
 
 `.github/workflows/build.yml` runs weekly (Wednesdays). It picks the newest `FIREFOX-ANDROID_*_RELEASE` tag, applies the patches, builds with Mozilla's prebuilt engine (artifact build), signs the APK and publishes it as release `v<version>`. Already-built versions are skipped. After changing the patches, raise the number in `REVISION` so the rebuild gets a new release name (`v<version>-r<N>`) that Obtainium picks up as an update. Run it by hand under Actions → Build Firefox+ → Run workflow.
 
+The weekly build is published as a hidden draft, which Obtainium can't see. A weekly check (a scheduled Claude task, Wednesdays 11:38 Berlin time) reviews Mozilla's changes to the files the patches touch. If everything is fine it publishes the draft. If a patch no longer fits or clashes with a Mozilla change, it fixes the patch, rebuilds and publishes, and sends a one-line notification. If the fix needs a decision, it holds the update and sends a notification instead. Builds run by hand publish directly unless *draft* is ticked.
+
 Required repository secrets: `KEYSTORE_B64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`.
 
 Install and update on the phone with Obtainium pointed at this repository.
