@@ -1,0 +1,161 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
+index ed3771bd..2924bfd0 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
+@@ -133,20 +133,12 @@ fun ExpandedTabGroup(
+                     end = FirefoxTheme.layout.space.dynamic200,
+                 )
+     ) {
+-        if (selectedCount > 0) {
+-            GroupSelectionHeader(
+-                selectedCount = selectedCount,
+-                allSelected = selectedCount == group.tabs.size,
+-                actions = headerActions,
+-            )
+-        } else {
+-            ViewTabGroupHeader(
+-                title = group.title,
+-                groupTheme = group.theme,
+-                groupTabsSize = group.tabs.size,
+-                actions = actions,
+-            )
+-        }
++        // Firefox+: only the group title stays at the top; every button sits in the bar at the bottom.
++        ViewTabGroupHeader(
++            title = group.title,
++            groupTheme = group.theme,
++            groupTabsSize = group.tabs.size,
++        )
+ 
+         CompositionLocalProvider(LocalTabLayoutScrollStateHolder provides scrollHolder) {
+             TabLayout(
+@@ -159,7 +151,7 @@ fun ExpandedTabGroup(
+                 selectedItemIndex = group.initialScrollIndex,
+                 selectionMode = selectionMode,
+                 itemInteractionHandler = itemInteractionHandler,
+-                modifier = Modifier,
++                modifier = Modifier.weight(1f),
+                 onTabClose = actions.onTabClose,
+                 onItemClick = actions.onItemClick,
+                 onItemLongClick = actions.onItemLongClick,
+@@ -174,6 +166,16 @@ fun ExpandedTabGroup(
+                 focusEnabled = true, // Drag and drop is not possible in this view, so focus should never be suppressed
+             )
+         }
++
++        if (selectedCount > 0) {
++            GroupSelectionBar(
++                selectedCount = selectedCount,
++                allSelected = selectedCount == group.tabs.size,
++                actions = headerActions,
++            )
++        } else {
++            GroupActionsBar(actions = actions)
++        }
+     }
+ }
+ 
+@@ -182,7 +184,6 @@ private fun ViewTabGroupHeader(
+     title: String,
+     groupTabsSize: Int,
+     groupTheme: TabGroupTheme,
+-    actions: ExpandedTabGroupActions,
+ ) {
+     Row(
+         modifier =
+@@ -224,9 +225,21 @@ private fun ViewTabGroupHeader(
+                 style = FirefoxTheme.typography.headline7,
+             )
+         }
++    }
++}
+ 
+-        Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static200 + FirefoxTheme.layout.space.static25))
+-
++/** Firefox+: the group's buttons, at the bottom of the sheet: search and menu on the left, add tab on the right. */
++@Composable
++private fun GroupActionsBar(actions: ExpandedTabGroupActions) {
++    Row(
++        modifier =
++            Modifier.fillMaxWidth()
++                .padding(
++                    top = FirefoxTheme.layout.space.static100,
++                    bottom = FirefoxTheme.layout.space.static100,
++                ),
++        verticalAlignment = Alignment.CenterVertically,
++    ) {
+         IconButton(
+             onClick = actions.onSearchClick,
+             contentDescription = stringResource(id = R.string.tab_manager_open_tab_search),
+@@ -240,13 +253,6 @@ private fun ViewTabGroupHeader(
+ 
+         Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))
+ 
+-        val onAddNewTabClick = actions.onAddNewTabClick
+-        if (onAddNewTabClick != null) {
+-            AddTabToGroupButton(onClick = onAddNewTabClick)
+-
+-            Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))
+-        }
+-
+         TabGroupMenuButton(
+             includeCloseOption = true,
+             includeUngroupOption = true,
+@@ -256,11 +262,18 @@ private fun ViewTabGroupHeader(
+             onShareTabGroupClick = actions.onShareTabGroupClick,
+             onUngroupTabGroupClick = actions.onUngroupTabGroupClick,
+         )
++
++        Spacer(modifier = Modifier.weight(1f))
++
++        val onAddNewTabClick = actions.onAddNewTabClick
++        if (onAddNewTabClick != null) {
++            AddTabToGroupButton(onClick = onAddNewTabClick)
++        }
+     }
+ }
+ 
+ @Composable
+-private fun GroupSelectionHeader(
++private fun GroupSelectionBar(
+     selectedCount: Int,
+     allSelected: Boolean,
+     actions: ExpandedTabGroupActions,
+@@ -269,7 +282,7 @@ private fun GroupSelectionHeader(
+         modifier =
+             Modifier.fillMaxWidth()
+                 .padding(
+-                    top = FirefoxTheme.layout.space.static150,
++                    top = FirefoxTheme.layout.space.static100,
+                     bottom = FirefoxTheme.layout.space.static100,
+                 )
+                 .wrapContentHeight()
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
+index 64972be9..f31bcbee 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
+@@ -388,7 +388,6 @@ class TabManagementFragment : Fragment() {
+         trackersBlockedCount: Int?,
+         handleTabClick: (TabsTrayItem.Tab) -> Unit,
+     ): (TabManagerNavDestination) -> NavEntry<TabManagerNavDestination> {
+-        val windowSize = FirefoxTheme.windowSize
+         val resources = LocalResources.current
+         return entryProvider {
+             entry<TabManagerNavDestination.Root> {
+@@ -405,12 +404,13 @@ class TabManagementFragment : Fragment() {
+                 )
+             }
+             entry<TabManagerNavDestination.ExpandedTabGroup>(
+-                metadata = { destination ->
++                // Firefox+: an open group always fills the sheet's full height, with no half-height step, so the
++                // buttons at its bottom are always on screen and a single Back closes it.
++                metadata = {
+                     BottomSheetSceneStrategy.bottomSheet(
++                        skipPartiallyExpanded = true,
+                         handleContentDescription = resources.getString(R.string.tab_group_sheet_dismiss_description),
+                         showBetaLabel = true,
+-                        fullyExpandOnFirstOpen =
+-                            destination.group.shouldFullyExpandOnFirstOpen(windowSize = windowSize),
+                     )
+                 }
+             ) { args ->

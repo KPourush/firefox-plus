@@ -1,0 +1,16 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
+index f31bcbee..d4f8bc54 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
+@@ -437,8 +437,11 @@ class TabManagementFragment : Fragment() {
+                 RenderEditTabGroup(formState = state.tabGroupState.formState)
+             }
+             entry<TabManagerNavDestination.AddToTabGroup>(
++                // Firefox+: open at full height. With a half-height step, the first swipe up only pulls the sheet
++                // open and stops there before the groups scroll.
+                 metadata =
+                     BottomSheetSceneStrategy.bottomSheet(
++                        skipPartiallyExpanded = true,
+                         handleContentDescription =
+                             stringResource(id = R.string.add_to_tab_group_bottom_sheet_grabber_content_description),
+                         showBetaLabel = true,

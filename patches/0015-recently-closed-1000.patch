@@ -1,0 +1,14 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/Core.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/Core.kt
+index e3007a55..ad35eec2 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/Core.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/Core.kt
+@@ -766,7 +766,8 @@ class Core(
+ 
+     companion object {
+         private const val KEY_STORAGE_NAME = "core_prefs"
+-        private const val RECENTLY_CLOSED_MAX = 10
++        // Firefox+: keep the last 1,000 closed tabs instead of 10, so a tab closed by accident can still be found.
++        private const val RECENTLY_CLOSED_MAX = 1000
+         const val HISTORY_METADATA_MAX_AGE_IN_MS = 14 * 24 * 60 * 60 * 1000 // 14 days
+ 
+         // Maximum number of suggestions returned from the history search engine source.
