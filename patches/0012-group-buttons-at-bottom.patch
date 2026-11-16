@@ -1,18 +1,64 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
-index ed3771bd..2924bfd0 100644
+index ed3771bd..a0a19db8 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
-@@ -133,20 +133,12 @@ fun ExpandedTabGroup(
+@@ -5,6 +5,7 @@
+ package org.mozilla.fenix.tabgroups
+ 
+ import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Row
+@@ -133,46 +134,51 @@ fun ExpandedTabGroup(
                      end = FirefoxTheme.layout.space.dynamic200,
                  )
      ) {
--        if (selectedCount > 0) {
++        // Firefox+: only the group title stays at the top; every button sits in the bar at the bottom.
++        ViewTabGroupHeader(
++            title = group.title,
++            groupTheme = group.theme,
++            groupTabsSize = group.tabs.size,
++        )
++
++        // Firefox+: the tab list fills its parent, so it gets a box holding only the space left above the bar.
++        Box(modifier = Modifier.weight(1f)) {
++            CompositionLocalProvider(LocalTabLayoutScrollStateHolder provides scrollHolder) {
++                TabLayout(
++                    tabs = group.tabs,
++                    displayTabsInGrid = displayTabsInGrid,
++                    dragAndDropEnabled = false,
++                    reorderingEnabled = true,
++                    displayTabGroupOnboarding = false,
++                    liveReorderEnabled = true,
++                    selectedItemIndex = group.initialScrollIndex,
++                    selectionMode = selectionMode,
++                    itemInteractionHandler = itemInteractionHandler,
++                    modifier = Modifier,
++                    onTabClose = actions.onTabClose,
++                    onItemClick = actions.onItemClick,
++                    onItemLongClick = actions.onItemLongClick,
++                    onEditTabGroupClick = {}, // Ignore tab group edits
++                    onCloseTabGroupClick = {}, // Ignore tab group closes
++                    onShareTabGroupClick = {}, // Ignore tab group shares
++                    onDeleteTabGroupClick = {}, // Ignore tab group deletes
++                    onUngroupTabGroupClick = {}, // Ignore tab group ungroups
++                    onTabGroupOnboardingDismiss = {}, // Ignore onboarding dismissals - onboarding is not shown in this layout
++                    contentPadding = PaddingValues(0.dp), // TabLayout should not have its own content padding inside this view
++                    listHorizontalPadding = 0.dp, // The list layout should not add its own horizontal padding inside this view
++                    focusEnabled = true, // Drag and drop is not possible in this view, so focus should never be suppressed
++                )
++            }
++        }
++
+         if (selectedCount > 0) {
 -            GroupSelectionHeader(
--                selectedCount = selectedCount,
--                allSelected = selectedCount == group.tabs.size,
--                actions = headerActions,
--            )
--        } else {
++            GroupSelectionBar(
+                 selectedCount = selectedCount,
+                 allSelected = selectedCount == group.tabs.size,
+                 actions = headerActions,
+             )
+         } else {
 -            ViewTabGroupHeader(
 -                title = group.title,
 -                groupTheme = group.theme,
@@ -20,42 +66,37 @@ index ed3771bd..2924bfd0 100644
 -                actions = actions,
 -            )
 -        }
-+        // Firefox+: only the group title stays at the top; every button sits in the bar at the bottom.
-+        ViewTabGroupHeader(
-+            title = group.title,
-+            groupTheme = group.theme,
-+            groupTabsSize = group.tabs.size,
-+        )
- 
-         CompositionLocalProvider(LocalTabLayoutScrollStateHolder provides scrollHolder) {
-             TabLayout(
-@@ -159,7 +151,7 @@ fun ExpandedTabGroup(
-                 selectedItemIndex = group.initialScrollIndex,
-                 selectionMode = selectionMode,
-                 itemInteractionHandler = itemInteractionHandler,
+-
+-        CompositionLocalProvider(LocalTabLayoutScrollStateHolder provides scrollHolder) {
+-            TabLayout(
+-                tabs = group.tabs,
+-                displayTabsInGrid = displayTabsInGrid,
+-                dragAndDropEnabled = false,
+-                reorderingEnabled = true,
+-                displayTabGroupOnboarding = false,
+-                liveReorderEnabled = true,
+-                selectedItemIndex = group.initialScrollIndex,
+-                selectionMode = selectionMode,
+-                itemInteractionHandler = itemInteractionHandler,
 -                modifier = Modifier,
-+                modifier = Modifier.weight(1f),
-                 onTabClose = actions.onTabClose,
-                 onItemClick = actions.onItemClick,
-                 onItemLongClick = actions.onItemLongClick,
-@@ -174,6 +166,16 @@ fun ExpandedTabGroup(
-                 focusEnabled = true, // Drag and drop is not possible in this view, so focus should never be suppressed
-             )
-         }
-+
-+        if (selectedCount > 0) {
-+            GroupSelectionBar(
-+                selectedCount = selectedCount,
-+                allSelected = selectedCount == group.tabs.size,
-+                actions = headerActions,
-+            )
-+        } else {
+-                onTabClose = actions.onTabClose,
+-                onItemClick = actions.onItemClick,
+-                onItemLongClick = actions.onItemLongClick,
+-                onEditTabGroupClick = {}, // Ignore tab group edits
+-                onCloseTabGroupClick = {}, // Ignore tab group closes
+-                onShareTabGroupClick = {}, // Ignore tab group shares
+-                onDeleteTabGroupClick = {}, // Ignore tab group deletes
+-                onUngroupTabGroupClick = {}, // Ignore tab group ungroups
+-                onTabGroupOnboardingDismiss = {}, // Ignore onboarding dismissals - onboarding is not shown in this layout
+-                contentPadding = PaddingValues(0.dp), // TabLayout should not have its own content padding inside this view
+-                listHorizontalPadding = 0.dp, // The list layout should not add its own horizontal padding inside this view
+-                focusEnabled = true, // Drag and drop is not possible in this view, so focus should never be suppressed
+-            )
 +            GroupActionsBar(actions = actions)
-+        }
+         }
      }
  }
- 
-@@ -182,7 +184,6 @@ private fun ViewTabGroupHeader(
+@@ -182,7 +188,6 @@ private fun ViewTabGroupHeader(
      title: String,
      groupTabsSize: Int,
      groupTheme: TabGroupTheme,
@@ -63,7 +104,7 @@ index ed3771bd..2924bfd0 100644
  ) {
      Row(
          modifier =
-@@ -224,9 +225,21 @@ private fun ViewTabGroupHeader(
+@@ -224,9 +229,21 @@ private fun ViewTabGroupHeader(
                  style = FirefoxTheme.typography.headline7,
              )
          }
@@ -87,7 +128,7 @@ index ed3771bd..2924bfd0 100644
          IconButton(
              onClick = actions.onSearchClick,
              contentDescription = stringResource(id = R.string.tab_manager_open_tab_search),
-@@ -240,13 +253,6 @@ private fun ViewTabGroupHeader(
+@@ -240,13 +257,6 @@ private fun ViewTabGroupHeader(
  
          Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))
  
@@ -101,7 +142,7 @@ index ed3771bd..2924bfd0 100644
          TabGroupMenuButton(
              includeCloseOption = true,
              includeUngroupOption = true,
-@@ -256,11 +262,18 @@ private fun ViewTabGroupHeader(
+@@ -256,11 +266,18 @@ private fun ViewTabGroupHeader(
              onShareTabGroupClick = actions.onShareTabGroupClick,
              onUngroupTabGroupClick = actions.onUngroupTabGroupClick,
          )
@@ -121,7 +162,7 @@ index ed3771bd..2924bfd0 100644
      selectedCount: Int,
      allSelected: Boolean,
      actions: ExpandedTabGroupActions,
-@@ -269,7 +282,7 @@ private fun GroupSelectionHeader(
+@@ -269,7 +286,7 @@ private fun GroupSelectionHeader(
          modifier =
              Modifier.fillMaxWidth()
                  .padding(
