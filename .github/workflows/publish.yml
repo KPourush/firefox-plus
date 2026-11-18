@@ -1,0 +1,32 @@
+name: Publish release
+
+# Publishes a reviewed draft release (makes it visible to Obtainium).
+# Started by the weekly check once the build has been reviewed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag of the draft release to publish (e.g. v160.0.1-r15)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=30" \
+            --jq ".[] | select(.draft == true and .tag_name == \"$TAG\") | .id" | head -1)
+          if [ -z "$id" ]; then
+            echo "::error::No draft release with tag $TAG"
+            exit 1
+          fi
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" -F draft=false -F make_latest=true \
+            --jq '"Published \(.tag_name) (draft=\(.draft))"'
