@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Firefox+ logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF9640"/>
+      <stop offset="0.55" stop-color="#FF4F5E"/>
+      <stop offset="1" stop-color="#9059FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="160" rx="36" fill="url(#bg)"/>
+  <!-- stacked tabs -->
+  <rect x="46" y="30" width="72" height="54" rx="10" fill="#fff" opacity="0.35"/>
+  <rect x="38" y="44" width="76" height="58" rx="11" fill="#fff" opacity="0.6"/>
+  <rect x="30" y="58" width="80" height="64" rx="12" fill="#fff"/>
+  <rect x="40" y="70" width="36" height="7" rx="3.5" fill="#FF4F5E" opacity="0.85"/>
+  <rect x="40" y="84" width="58" height="6" rx="3" fill="#20123A" opacity="0.18"/>
+  <rect x="40" y="96" width="48" height="6" rx="3" fill="#20123A" opacity="0.18"/>
+  <!-- plus badge -->
+  <circle cx="114" cy="114" r="26" fill="#20123A"/>
+  <rect x="111" y="100" width="6" height="28" rx="3" fill="#fff"/>
+  <rect x="100" y="111" width="28" height="6" rx="3" fill="#fff"/>
+</svg>

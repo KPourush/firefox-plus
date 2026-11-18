@@ -1,0 +1,1 @@
+<sub>Firefox+ is an unofficial build, not affiliated with Mozilla. Edit these pages in [`wiki/`](https://github.com/KPourush/firefox-plus/tree/main/wiki); changes made in the Wiki tab are overwritten.</sub>

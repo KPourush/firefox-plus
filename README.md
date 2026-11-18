@@ -1,6 +1,105 @@
+<div align="center">
+
+<img src=".github/assets/logo.svg" width="112" alt="Firefox+ logo">
+
 # Firefox+
 
-Personal build of Firefox for Android, built from Mozilla's official release source with these patches:
+**Firefox for Android, tuned for people who keep hundreds of tabs open.**
+
+Tab previews that don't disappear, tab groups you can actually manage, and 1,000 recently closed tabs.<br>
+Built every week from Mozilla's official release source.
+
+[![Latest release](https://img.shields.io/github/v/release/KPourush/firefox-plus?label=latest&color=ff4f5e&style=flat-square)](https://github.com/KPourush/firefox-plus/releases/latest)
+[![Weekly build](https://img.shields.io/github/actions/workflow/status/KPourush/firefox-plus/build.yml?label=weekly%20build&style=flat-square)](https://github.com/KPourush/firefox-plus/actions/workflows/build.yml)
+![Android arm64](https://img.shields.io/badge/android-arm64--v8a-3ddc84?style=flat-square&logo=android&logoColor=white)
+[![Wiki](https://img.shields.io/badge/docs-wiki-9059ff?style=flat-square)](https://github.com/KPourush/firefox-plus/wiki)
+
+<a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/KPourush/firefox-plus"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" height="56" alt="Get it on Obtainium"></a>
+
+[Install](https://github.com/KPourush/firefox-plus/wiki/Installing) · [Features](https://github.com/KPourush/firefox-plus/wiki/Features) · [How updates work](https://github.com/KPourush/firefox-plus/wiki/How-Updates-Work) · [Tab Mover](https://github.com/KPourush/firefox-plus/wiki/Tab-Mover) · [FAQ](https://github.com/KPourush/firefox-plus/wiki/FAQ)
+
+</div>
+
+---
+
+## Why
+
+Stock Firefox for Android keeps tab thumbnails in a 100 MB cache. Once you open about 100 new tabs, older tabs lose their previews. Firefox+ raises that limit to 8 GB, and adds the tab-management tools that a large tab collection needs.
+
+## Highlights
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🖼️ Tab memory
+- Thumbnail cache **100 MB → 8 GB**
+- Recently closed keeps **1,000** tabs instead of 10
+- Faster tab tray and tab search with many tabs
+
+</td>
+<td width="50%" valign="top">
+
+### 🗂️ Tab groups
+- Select, move, remove and reorder (**To top / To end**) tabs inside a group
+- Tab tray opens straight into the current tab's group
+- Search inside an open group
+- Controls at the bottom, within thumb reach
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🔎 Search & select
+- **Select all (N)** matching tabs, then Add to group
+- Add to group as a 2-column grid, recently used groups first
+- Duplicate tabs follow their newest copy, plus a one-tap sort
+
+</td>
+<td valign="top">
+
+### 🧭 Getting around
+- Toolbar swipe follows tab tray order, group by group
+- Draggable scrollbar to jump through hundreds of tabs
+- Installs **next to** the Play Store Firefox (`org.mozilla.firefox_plus`)
+
+</td>
+</tr>
+</table>
+
+Full details for every change: [Features](https://github.com/KPourush/firefox-plus/wiki/Features).
+
+## Install
+
+1. Install [Obtainium](https://github.com/ImranR98/Obtainium) on your phone.
+2. Tap the **Get it on Obtainium** badge above, or add `https://github.com/KPourush/firefox-plus` as a new app.
+3. Install Firefox+. Obtainium will offer each new weekly release as an update.
+
+Moving over from regular Firefox? [Tab Mover](https://github.com/KPourush/firefox-plus/wiki/Tab-Mover) carries all your tabs across, in order.
+
+## How updates work
+
+```mermaid
+flowchart LR
+    A[Mozilla releases<br>Firefox for Android] --> B[Weekly build<br>Wed 05:17 UTC]
+    B --> C[Apply patches<br>build + sign APK]
+    C --> D[Hidden draft release]
+    D --> E{Weekly check<br>reviews Mozilla's changes}
+    E -- all good --> F[Published]
+    E -- patch needs a fix --> G[Fix, rebuild] --> F
+    E -- needs a decision --> H[Held + notification]
+    F --> I[Obtainium update<br>on the phone]
+```
+
+Only reviewed builds are published. More in [How updates work](https://github.com/KPourush/firefox-plus/wiki/How-Updates-Work).
+
+## Patches
+
+Every change lives as a plain `git apply` patch in [`patches/`](patches), applied in order on top of Mozilla's release tag.
+
+<details>
+<summary><b>All 15 patches</b></summary>
 
 | Patch | What it changes |
 |---|---|
@@ -20,16 +119,22 @@ Personal build of Firefox for Android, built from Mozilla's official release sou
 | `0014-tab-tray-performance.patch` | The tab list is only rebuilt when something it shows changes (title, address, icon, playing media, selected tab, groups), not on every page-loading update, and an outdated rebuild is dropped when a newer one starts. Tab search cancels the previous search on each keystroke and only shows results for the newest query. Sorting duplicates saves group changes once per group instead of once per page. |
 | `0015-recently-closed-1000.patch` | Recently closed keeps the last 1,000 closed tabs instead of 10. |
 
-## How builds happen
+</details>
 
-`.github/workflows/build.yml` runs weekly (Wednesdays). It picks the newest `FIREFOX-ANDROID_*_RELEASE` tag, applies the patches, builds with Mozilla's prebuilt engine (artifact build), signs the APK and publishes it as release `v<version>`. Already-built versions are skipped. After changing the patches, raise the number in `REVISION` so the rebuild gets a new release name (`v<version>-r<N>`) that Obtainium picks up as an update. Run it by hand under Actions → Build Firefox+ → Run workflow.
+## Building and maintenance
 
-The weekly build is published as a hidden draft, which Obtainium can't see. A weekly check (a scheduled Claude task, Wednesdays 11:38 Berlin time) reviews Mozilla's changes to the files the patches touch. If everything is fine it publishes the draft. If a patch no longer fits or clashes with a Mozilla change, it fixes the patch, rebuilds and publishes, and sends a one-line notification. If the fix needs a decision, it holds the update and sends a notification instead. Builds run by hand publish directly unless *draft* is ticked.
+- [`.github/workflows/build.yml`](.github/workflows/build.yml) runs weekly (Wednesdays). It picks the newest `FIREFOX-ANDROID_*_RELEASE` tag, applies the patches, builds with Mozilla's prebuilt engine (artifact build), signs the APK and creates release `v<version>`. Versions that were already built are skipped. Run it by hand under **Actions → Build Firefox+ → Run workflow**. Builds run by hand publish directly unless *draft* is ticked.
+- Scheduled builds are hidden drafts until the weekly check (a scheduled Claude task, Wednesdays 11:38 Berlin time) has reviewed them. It publishes them through [`publish.yml`](.github/workflows/publish.yml).
+- After changing the patches, raise the number in [`REVISION`](REVISION) so the rebuild gets a new release name (`v<version>-r<N>`) that Obtainium sees as an update.
+- Required repository secrets: `KEYSTORE_B64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`.
+- The wiki is written in [`wiki/`](wiki) and copied to the Wiki tab by [`wiki.yml`](.github/workflows/wiki.yml).
 
-Required repository secrets: `KEYSTORE_B64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`.
-
-Install and update on the phone with Obtainium pointed at this repository.
+See [Development](https://github.com/KPourush/firefox-plus/wiki/Development) for adding or updating a patch.
 
 ## Tab Mover
 
-`tab-mover/` is a small extension for moving tabs between the old Firefox and Firefox+: export all tabs in order to a JSON file, then re-open them in order without loading them all at once. Optional: paste a shared tab group's links to mark those tabs with `#ffg`, then search `#ffg` → Select all → Add to group.
+[`tab-mover/`](tab-mover) is a small extension for moving tabs between the old Firefox and Firefox+: export all tabs in order to a JSON file, then re-open them in order without loading them all at once. Optional: paste a shared tab group's links to mark those tabs with `#ffg`, then search `#ffg` → Select all → Add to group.
+
+---
+
+<sub>Firefox+ is a personal, unofficial build and is not affiliated with or endorsed by Mozilla. Firefox is a trademark of the Mozilla Foundation. The source code is Mozilla's, under the <a href="https://www.mozilla.org/MPL/2.0/">Mozilla Public License 2.0</a>; the patches here apply on top of it.</sub>

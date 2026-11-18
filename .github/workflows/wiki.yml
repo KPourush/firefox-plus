@@ -1,0 +1,46 @@
+name: Sync wiki
+
+# Copies the pages in wiki/ to the repository's Wiki tab.
+# Edit the pages in wiki/; changes made directly in the Wiki tab are overwritten.
+
+on:
+  push:
+    branches: [main]
+    paths: ["wiki/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wiki
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Copy wiki/ to the Wiki tab
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          name=$(git log -1 --format=%an)
+          email=$(git log -1 --format=%ae)
+          url="https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+          if ! git clone -q "$url" wiki-repo; then
+            echo "::error::The wiki hasn't been created yet. Open the Wiki tab, click 'Create the first page', save it, then re-run this workflow."
+            exit 1
+          fi
+          rsync -a --delete --exclude .git wiki/ wiki-repo/
+          cd wiki-repo
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Wiki is already up to date."
+            exit 0
+          fi
+          git -c user.name="$name" -c user.email="$email" commit -q -m "Update wiki from ${GITHUB_SHA::7}"
+          git push -q origin HEAD
+          echo "Wiki updated."

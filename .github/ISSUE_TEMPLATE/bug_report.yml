@@ -1,0 +1,43 @@
+name: 🐞 Something's broken
+description: A Firefox+ feature or the app itself isn't working right.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Firefox+ version
+      description: Settings → About, or the release name in Obtainium (e.g. v160.0.1-r15).
+      placeholder: v160.0.1-r15
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Tab thumbnails / previews
+        - Tab groups (select, move, remove, To top / To end)
+        - Tab search / Select all
+        - Add to group sheet
+        - Duplicate tabs / sort
+        - Toolbar swipe
+        - Fast scroller
+        - Recently closed
+        - Speed / performance
+        - Installing or updating
+        - Tab Mover
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or extra details
+      description: Optional. Roughly how many tabs and groups you have helps for tab issues.
