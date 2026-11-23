@@ -1,0 +1,15 @@
+diff --git a/mobile/android/android-components/components/feature/recentlyclosed/src/main/java/mozilla/components/feature/recentlyclosed/RecentlyClosedTabsStorage.kt b/mobile/android/android-components/components/feature/recentlyclosed/src/main/java/mozilla/components/feature/recentlyclosed/RecentlyClosedTabsStorage.kt
+index 41d38856..4d6870a0 100644
+--- a/mobile/android/android-components/components/feature/recentlyclosed/src/main/java/mozilla/components/feature/recentlyclosed/RecentlyClosedTabsStorage.kt
++++ b/mobile/android/android-components/components/feature/recentlyclosed/src/main/java/mozilla/components/feature/recentlyclosed/RecentlyClosedTabsStorage.kt
+@@ -107,7 +107,9 @@ class RecentlyClosedTabsStorage(
+ 
+     @VisibleForTesting
+     internal suspend fun addTabState(tab: RecoverableTab) {
+-        val entity = tab.state.toRecentlyClosedTabEntity()
++        // Firefox+: sort by when the tab was closed, not when it was last opened, so closing an
++        // old tab that hasn't been opened in a while still puts it at the top of the list.
++        val entity = tab.state.toRecentlyClosedTabEntity().apply { createdAt = System.currentTimeMillis() }
+         // Even if engine session state persistence fails, degrade gracefully by storing the tab
+         // itself in the db - that will allow user to restore it with a "fresh" engine state.
+         // That's a form of data loss, but not much we can do here other than log.

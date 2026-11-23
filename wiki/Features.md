@@ -10,6 +10,9 @@ Tab thumbnail cache limit raised from 100 MB to 8 GB, so previews are no longer 
 **1,000 recently closed tabs** · `0015`<br>
 Recently closed keeps the last 1,000 closed tabs instead of 10.
 
+**Recently closed sorted by close time** · `0016`<br>
+Recently closed is sorted by when each tab was closed instead of when it was last opened, so closing an old tab puts it at the top instead of the bottom.
+
 **Faster tab tray** · `0014`<br>
 The tab list is only rebuilt when something it shows changes (title, address, icon, playing media, selected tab, groups), not on every page-loading update, and an outdated rebuild is dropped when a newer one starts. Tab search cancels the previous search on each keystroke and only shows results for the newest query. Sorting duplicates saves group changes once per group instead of once per page.
 
@@ -50,7 +53,7 @@ Adding a tab to a group also pulls in every other copy of the same page (from an
 Toolbar swipe follows the tab tray order: through a group's tabs in group order, then on to the next group or tab. It stops at the first and last tab instead of wrapping around.
 
 **Fast scroller** · `0008`<br>
-Draggable scrollbar on the right edge of the tab list, in the overview and inside open groups (list and grid view). Hold the thumb and drag to jump through hundreds of tabs.
+Draggable scrollbar on the left edge of the tab list, away from the close buttons, in the overview and inside open groups (list and grid view). Hold the thumb and drag to jump through hundreds of tabs.
 
 ## 📱 App identity
 

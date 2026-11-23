@@ -35,6 +35,7 @@ Stock Firefox for Android keeps tab thumbnails in a 100 MB cache. Once you open 
 ### 🖼️ Tab memory
 - Thumbnail cache **100 MB → 8 GB**
 - Recently closed keeps **1,000** tabs instead of 10
+- Recently closed is sorted by when you closed each tab, so an old tab you close still shows up at the top
 - Faster tab tray and tab search with many tabs
 
 </td>
@@ -110,7 +111,7 @@ Every change lives as a plain `git apply` patch in [`patches/`](patches), applie
 | `0005-open-current-tab-group.patch` | Opening the tab tray while on a tab that's in a group goes straight into that group, scrolled to the current tab. Back still leads to the overview. |
 | `0006-tab-search-in-open-group.patch` | Search button in the header of an open tab group. Back from search returns to the group; Select all returns to the overview with the matches selected, ready for Add to group. |
 | `0007-swipe-within-tab-group.patch` | Toolbar swipe follows the tab tray order: through a group's tabs in group order, then on to the next group or tab. It stops at the first and last tab instead of wrapping around. |
-| `0008-tab-list-fast-scroller.patch` | Draggable scrollbar on the right edge of the tab list, in the overview and inside open groups (list and grid view). Hold the thumb and drag to jump through hundreds of tabs. |
+| `0008-tab-list-fast-scroller.patch` | Draggable scrollbar on the left edge of the tab list, away from the close buttons, in the overview and inside open groups (list and grid view). Hold the thumb and drag to jump through hundreds of tabs. |
 | `0009-duplicate-tabs.patch` | Adding a tab to a group also pulls in every other copy of the same page (from anywhere), placed right after the new tab, newest to oldest. A sort button next to tab search moves every older copy directly after its newest copy and into that copy's group (or out of any group if the newest is ungrouped); it shows a spinner while working and a message when done. Groups left empty are removed. Pages count as the same when their address matches, ignoring the part after `#` and a trailing `/`. Nothing is closed automatically. |
 | `0010-add-to-group-grid.patch` | The Add to group sheet shows groups as a 2-column grid of tiles (group color bar, name on up to 2 lines, tab count), with New group as the first tile. Groups you last added tabs to come first; closing, reading or renaming tabs doesn't change the order. |
 | `0011-group-move-to-top-end.patch` | Inside an open tab group, the selection bar gets a second row: Move, Remove, To top, To end. To top / To end move the selected tabs to the beginning or end of the group, keeping their order, then leave selection; the list stays where it was. |
@@ -118,6 +119,7 @@ Every change lives as a plain `git apply` patch in [`patches/`](patches), applie
 | `0013-add-to-group-full-height.patch` | The Add to group sheet opens at full height, so scrolling the groups doesn't stop partway while the sheet pulls itself open. |
 | `0014-tab-tray-performance.patch` | The tab list is only rebuilt when something it shows changes (title, address, icon, playing media, selected tab, groups), not on every page-loading update, and an outdated rebuild is dropped when a newer one starts. Tab search cancels the previous search on each keystroke and only shows results for the newest query. Sorting duplicates saves group changes once per group instead of once per page. |
 | `0015-recently-closed-1000.patch` | Recently closed keeps the last 1,000 closed tabs instead of 10. |
+| `0016-recently-closed-by-close-time.patch` | Recently closed is sorted by when each tab was closed instead of when it was last opened, so closing an old tab puts it at the top instead of the bottom (where it could be pruned straight away). |
 
 </details>
 

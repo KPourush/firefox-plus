@@ -1,6 +1,6 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt
 new file mode 100644
-index 00000000..58092c2e
+index 00000000..2de3e89e
 --- /dev/null
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt
 @@ -0,0 +1,145 @@
@@ -48,7 +48,7 @@ index 00000000..58092c2e
 +        get() = (firstVisible.toFloat() / maxFirstVisible).coerceIn(0f, 1f)
 +}
 +
-+/** Draggable scrollbar thumb along the end edge of a tab list. */
++/** Draggable scrollbar thumb along the left edge of a tab list, away from the close buttons. */
 +@Composable
 +internal fun tabFastScroller(state: LazyListState): Modifier =
 +    fastScroller(
@@ -63,7 +63,7 @@ index 00000000..58092c2e
 +        scrollToItem = { state.scrollToItem(it) },
 +    )
 +
-+/** Draggable scrollbar thumb along the end edge of a tab grid. */
++/** Draggable scrollbar thumb along the left edge of a tab grid, away from the close buttons. */
 +@Composable
 +internal fun tabFastScroller(state: LazyGridState): Modifier =
 +    fastScroller(
@@ -100,7 +100,7 @@ index 00000000..58092c2e
 +                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
 +                val start = info()
 +                val track = size.height - thumbHeight
-+                if (!start.scrollable || track <= 0f || down.position.x < size.width - touchWidth) {
++                if (!start.scrollable || track <= 0f || down.position.x > touchWidth) {
 +                    return@awaitEachGesture
 +                }
 +                val thumbTop = start.fraction * track
@@ -143,7 +143,7 @@ index 00000000..58092c2e
 +            val width = if (dragging) activeThumbWidth else thumbWidth
 +            drawRoundRect(
 +                color = color.copy(alpha = if (dragging) 0.9f else 0.6f),
-+                topLeft = Offset(size.width - width - edgeInset, fraction * track),
++                topLeft = Offset(edgeInset, fraction * track),
 +                size = Size(width, thumbHeight),
 +                cornerRadius = CornerRadius(width / 2),
 +            )
