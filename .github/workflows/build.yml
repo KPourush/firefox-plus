@@ -84,6 +84,18 @@ jobs:
           sudo docker image prune --all --force || true
           df -h /
 
+      # The final packaging step can use more memory than the runner has; without swap the runner dies.
+      - name: Add swap
+        if: steps.pick.outputs.skip == 'false'
+        run: |
+          sudo swapoff -a || true
+          sudo rm -f /mnt/swapfile /swapfile
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
       - name: Fetch Firefox source
         if: steps.pick.outputs.skip == 'false'
         run: |
