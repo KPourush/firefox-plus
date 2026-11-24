@@ -1,9 +1,9 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt
 new file mode 100644
-index 00000000..2de3e89e
+index 0000000000..92a5352be8
 --- /dev/null
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt
-@@ -0,0 +1,145 @@
+@@ -0,0 +1,185 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -12,6 +12,9 @@ index 00000000..2de3e89e
 +
 +import androidx.compose.foundation.gestures.awaitEachGesture
 +import androidx.compose.foundation.gestures.awaitFirstDown
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.calculateEndPadding
++import androidx.compose.foundation.layout.calculateStartPadding
 +import androidx.compose.foundation.lazy.LazyListState
 +import androidx.compose.foundation.lazy.grid.LazyGridState
 +import androidx.compose.material3.MaterialTheme
@@ -30,10 +33,43 @@ index 00000000..2de3e89e
 +import androidx.compose.ui.input.pointer.PointerEventPass
 +import androidx.compose.ui.input.pointer.pointerInput
 +import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.ui.platform.LocalLayoutDirection
++import androidx.compose.ui.unit.Dp
++import androidx.compose.ui.unit.LayoutDirection
 +import androidx.compose.ui.unit.dp
 +import kotlin.math.abs
 +import kotlin.math.roundToInt
 +import kotlinx.coroutines.launch
++
++/** Width of the empty strip on the right of a tab list that holds the fast scroller. */
++private val ScrollerLaneWidth = 24.dp
++
++/**
++ * Splits the side margins of a tab list so the right one becomes the scroller lane: the tabs keep
++ * their width and move left. The lane is [ScrollerLaneWidth] wide, or all the margin there is if
++ * the margins together are narrower than that.
++ *
++ * @return start and end padding.
++ */
++internal fun scrollerLaneMargins(start: Dp, end: Dp): Pair<Dp, Dp> {
++    val total = start + end
++    val lane = if (total < ScrollerLaneWidth) total else ScrollerLaneWidth
++    return (total - lane) to lane
++}
++
++/** [scrollerLaneMargins] applied to the horizontal sides of [padding]. */
++@Composable
++internal fun withScrollerLane(padding: PaddingValues): PaddingValues {
++    val direction = LocalLayoutDirection.current
++    val (start, end) =
++        scrollerLaneMargins(padding.calculateStartPadding(direction), padding.calculateEndPadding(direction))
++    return PaddingValues(
++        start = start,
++        top = padding.calculateTopPadding(),
++        end = end,
++        bottom = padding.calculateBottomPadding(),
++    )
++}
 +
 +private class FastScrollInfo(
 +    val firstVisible: Int,
@@ -48,7 +84,7 @@ index 00000000..2de3e89e
 +        get() = (firstVisible.toFloat() / maxFirstVisible).coerceIn(0f, 1f)
 +}
 +
-+/** Draggable scrollbar thumb along the left edge of a tab list, away from the close buttons. */
++/** Draggable scrollbar thumb in the empty lane along the right edge of a tab list, clear of the tabs. */
 +@Composable
 +internal fun tabFastScroller(state: LazyListState): Modifier =
 +    fastScroller(
@@ -63,7 +99,7 @@ index 00000000..2de3e89e
 +        scrollToItem = { state.scrollToItem(it) },
 +    )
 +
-+/** Draggable scrollbar thumb along the left edge of a tab grid, away from the close buttons. */
++/** Draggable scrollbar thumb in the empty lane along the right edge of a tab grid, clear of the tabs. */
 +@Composable
 +internal fun tabFastScroller(state: LazyGridState): Modifier =
 +    fastScroller(
@@ -85,13 +121,13 @@ index 00000000..2de3e89e
 +): Modifier {
 +    val scope = rememberCoroutineScope()
 +    val density = LocalDensity.current
-+    val touchWidth = with(density) { 40.dp.toPx() }
++    val laneWidth = with(density) { ScrollerLaneWidth.toPx() }
 +    val touchExtra = with(density) { 16.dp.toPx() }
 +    val thumbHeight = with(density) { 56.dp.toPx() }
 +    val thumbWidth = with(density) { 6.dp.toPx() }
 +    val activeThumbWidth = with(density) { 10.dp.toPx() }
-+    val edgeInset = with(density) { 4.dp.toPx() }
 +    val color = MaterialTheme.colorScheme.onSurfaceVariant
++    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 +    var dragging by remember { mutableStateOf(false) }
 +    var dragFraction by remember { mutableFloatStateOf(0f) }
 +
@@ -100,7 +136,9 @@ index 00000000..2de3e89e
 +                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
 +                val start = info()
 +                val track = size.height - thumbHeight
-+                if (!start.scrollable || track <= 0f || down.position.x > touchWidth) {
++                val lane = minOf(laneWidth, size.width.toFloat())
++                val inLane = if (rtl) down.position.x <= lane else down.position.x >= size.width - lane
++                if (!start.scrollable || track <= 0f || !inLane) {
 +                    return@awaitEachGesture
 +                }
 +                val thumbTop = start.fraction * track
@@ -141,16 +179,18 @@ index 00000000..2de3e89e
 +            if (!current.scrollable || track <= 0f) return@drawWithContent
 +            val fraction = if (dragging) dragFraction else current.fraction
 +            val width = if (dragging) activeThumbWidth else thumbWidth
++            val lane = minOf(laneWidth, size.width)
++            val laneCenter = if (rtl) lane / 2 else size.width - lane / 2
 +            drawRoundRect(
 +                color = color.copy(alpha = if (dragging) 0.9f else 0.6f),
-+                topLeft = Offset(edgeInset, fraction * track),
++                topLeft = Offset(laneCenter - width / 2, fraction * track),
 +                size = Size(width, thumbHeight),
 +                cornerRadius = CornerRadius(width / 2),
 +            )
 +        }
 +}
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
-index 4db06b68..63a2abce 100644
+index 4db06b68de..c976a9313b 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
 @@ -599,6 +599,7 @@ private fun ReorderableTabGrid(
@@ -161,7 +201,16 @@ index 4db06b68..63a2abce 100644
                      .fillMaxSize()
                      .thenConditional(
                          Modifier.detectGridPressAndDragGestures(
-@@ -754,7 +755,7 @@ private fun InteractableTabGrid(
+@@ -614,7 +615,7 @@ private fun ReorderableTabGrid(
+                         testTag = TabsTrayTestTag.TAB_GRID
+                     },
+             state = gridState,
+-            contentPadding = contentPadding,
++            contentPadding = withScrollerLane(contentPadding),
+             verticalArrangement = Arrangement.spacedBy(space = spacing),
+             horizontalArrangement = Arrangement.spacedBy(space = horizontalGridPadding),
+         ) {
+@@ -754,14 +755,14 @@ private fun InteractableTabGrid(
          LazyVerticalGrid(
              columns = GridCells.Fixed(count = columns),
              modifier =
@@ -170,19 +219,39 @@ index 4db06b68..63a2abce 100644
                      tabGridColumnCount = columns
                      testTag = TabsTrayTestTag.TAB_GRID
                      collectionInfo = collectionSemantics.collectionInfo
-@@ -1284,6 +1285,7 @@ private fun InteractableTabList(
+                 },
+             state = gridState,
+             userScrollEnabled = gridInteractionState.draggedItem == InteractionState.Grid.None,
+-            contentPadding = contentPadding,
++            contentPadding = withScrollerLane(contentPadding),
+             verticalArrangement = Arrangement.spacedBy(space = spacing),
+             horizontalArrangement = Arrangement.spacedBy(space = horizontalGridPadding),
+         ) {
+@@ -1284,8 +1285,12 @@ private fun InteractableTabList(
          LazyColumn(
              modifier =
                  modifier
 +                    .then(tabFastScroller(state))
                      .width(FirefoxTheme.layout.size.containerMaxWidth)
-                     .padding(horizontal = horizontalPadding)
+-                    .padding(horizontal = horizontalPadding)
++                    .padding(
++                        start = scrollerLaneMargins(horizontalPadding, horizontalPadding).first,
++                        end = scrollerLaneMargins(horizontalPadding, horizontalPadding).second,
++                    )
                      .background(MaterialTheme.colorScheme.surface)
-@@ -1607,6 +1609,7 @@ private fun ReorderableTabList(
+                     .semantics {
+                         testTag = TabsTrayTestTag.TAB_LIST
+@@ -1607,8 +1612,12 @@ private fun ReorderableTabList(
          LazyColumn(
              modifier =
                  modifier
 +                    .then(tabFastScroller(state))
                      .width(FirefoxTheme.layout.size.containerMaxWidth)
-                     .padding(horizontal = horizontalPadding)
+-                    .padding(horizontal = horizontalPadding)
++                    .padding(
++                        start = scrollerLaneMargins(horizontalPadding, horizontalPadding).first,
++                        end = scrollerLaneMargins(horizontalPadding, horizontalPadding).second,
++                    )
                      .background(MaterialTheme.colorScheme.surface)
+                     .semantics {
+                         testTag = TabsTrayTestTag.TAB_LIST

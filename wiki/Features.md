@@ -53,7 +53,7 @@ Adding a tab to a group also pulls in every other copy of the same page (from an
 Toolbar swipe follows the tab tray order: through a group's tabs in group order, then on to the next group or tab. It stops at the first and last tab instead of wrapping around.
 
 **Fast scroller** · `0008`<br>
-Draggable scrollbar on the left edge of the tab list, away from the close buttons, in the overview and inside open groups (list and grid view). Hold the thumb and drag to jump through hundreds of tabs.
+Draggable scrollbar on the right edge of the tab list, in its own 24 dp lane: the tabs keep their width and move left into the side margin, so the scrollbar never sits on top of them. In the overview and inside open groups (list and grid view). Hold the thumb and drag to jump through hundreds of tabs.
 
 ## 📱 App identity
 

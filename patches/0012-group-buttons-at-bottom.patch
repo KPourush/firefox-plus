@@ -1,5 +1,5 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
-index ed3771bd..a0a19db8 100644
+index ed3771bd89..6588a202af 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
 @@ -5,6 +5,7 @@
@@ -10,63 +10,43 @@ index ed3771bd..a0a19db8 100644
  import androidx.compose.foundation.layout.Column
  import androidx.compose.foundation.layout.PaddingValues
  import androidx.compose.foundation.layout.Row
-@@ -133,46 +134,51 @@ fun ExpandedTabGroup(
-                     end = FirefoxTheme.layout.space.dynamic200,
-                 )
+@@ -41,7 +42,6 @@ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.tooling.preview.PreviewParameter
+ import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+-import androidx.compose.ui.unit.dp
+ import mozilla.components.compose.base.annotation.FlexibleWindowLightDarkPreview
+ import mozilla.components.compose.base.button.IconButton
+ import mozilla.components.compose.draggable.ItemInteractionHandler
+@@ -128,51 +128,59 @@ fun ExpandedTabGroup(
+     Column(
+         modifier =
+             Modifier.testTag(TabsTrayTestTag.TAB_GROUP_BOTTOM_SHEET_ROOT)
+-                .padding(
+-                    start = FirefoxTheme.layout.space.dynamic200,
+-                    end = FirefoxTheme.layout.space.dynamic200,
+-                )
      ) {
-+        // Firefox+: only the group title stays at the top; every button sits in the bar at the bottom.
-+        ViewTabGroupHeader(
-+            title = group.title,
-+            groupTheme = group.theme,
-+            groupTabsSize = group.tabs.size,
-+        )
-+
-+        // Firefox+: the tab list fills its parent, so it gets a box holding only the space left above the bar.
-+        Box(modifier = Modifier.weight(1f)) {
-+            CompositionLocalProvider(LocalTabLayoutScrollStateHolder provides scrollHolder) {
-+                TabLayout(
-+                    tabs = group.tabs,
-+                    displayTabsInGrid = displayTabsInGrid,
-+                    dragAndDropEnabled = false,
-+                    reorderingEnabled = true,
-+                    displayTabGroupOnboarding = false,
-+                    liveReorderEnabled = true,
-+                    selectedItemIndex = group.initialScrollIndex,
-+                    selectionMode = selectionMode,
-+                    itemInteractionHandler = itemInteractionHandler,
-+                    modifier = Modifier,
-+                    onTabClose = actions.onTabClose,
-+                    onItemClick = actions.onItemClick,
-+                    onItemLongClick = actions.onItemLongClick,
-+                    onEditTabGroupClick = {}, // Ignore tab group edits
-+                    onCloseTabGroupClick = {}, // Ignore tab group closes
-+                    onShareTabGroupClick = {}, // Ignore tab group shares
-+                    onDeleteTabGroupClick = {}, // Ignore tab group deletes
-+                    onUngroupTabGroupClick = {}, // Ignore tab group ungroups
-+                    onTabGroupOnboardingDismiss = {}, // Ignore onboarding dismissals - onboarding is not shown in this layout
-+                    contentPadding = PaddingValues(0.dp), // TabLayout should not have its own content padding inside this view
-+                    listHorizontalPadding = 0.dp, // The list layout should not add its own horizontal padding inside this view
-+                    focusEnabled = true, // Drag and drop is not possible in this view, so focus should never be suppressed
-+                )
-+            }
-+        }
-+
-         if (selectedCount > 0) {
+-        if (selectedCount > 0) {
 -            GroupSelectionHeader(
-+            GroupSelectionBar(
-                 selectedCount = selectedCount,
-                 allSelected = selectedCount == group.tabs.size,
-                 actions = headerActions,
-             )
-         } else {
--            ViewTabGroupHeader(
--                title = group.title,
--                groupTheme = group.theme,
--                groupTabsSize = group.tabs.size,
--                actions = actions,
+-                selectedCount = selectedCount,
+-                allSelected = selectedCount == group.tabs.size,
+-                actions = headerActions,
 -            )
--        }
--
+-        } else {
++        // Firefox+: the side margins go on the title and the bar, not the whole sheet, so the tab list
++        // reaches the screen edge and its fast scroller gets a lane of its own on the right.
++        val sideMargin = FirefoxTheme.layout.space.dynamic200
++        // Firefox+: only the group title stays at the top; every button sits in the bar at the bottom.
++        Box(modifier = Modifier.padding(horizontal = sideMargin)) {
+             ViewTabGroupHeader(
+                 title = group.title,
+                 groupTheme = group.theme,
+                 groupTabsSize = group.tabs.size,
+-                actions = actions,
+             )
+         }
+ 
 -        CompositionLocalProvider(LocalTabLayoutScrollStateHolder provides scrollHolder) {
 -            TabLayout(
 -                tabs = group.tabs,
@@ -92,11 +72,50 @@ index ed3771bd..a0a19db8 100644
 -                listHorizontalPadding = 0.dp, // The list layout should not add its own horizontal padding inside this view
 -                focusEnabled = true, // Drag and drop is not possible in this view, so focus should never be suppressed
 -            )
-+            GroupActionsBar(actions = actions)
++        // Firefox+: the tab list fills its parent, so it gets a box holding only the space left above the bar.
++        Box(modifier = Modifier.weight(1f)) {
++            CompositionLocalProvider(LocalTabLayoutScrollStateHolder provides scrollHolder) {
++                TabLayout(
++                    tabs = group.tabs,
++                    displayTabsInGrid = displayTabsInGrid,
++                    dragAndDropEnabled = false,
++                    reorderingEnabled = true,
++                    displayTabGroupOnboarding = false,
++                    liveReorderEnabled = true,
++                    selectedItemIndex = group.initialScrollIndex,
++                    selectionMode = selectionMode,
++                    itemInteractionHandler = itemInteractionHandler,
++                    modifier = Modifier,
++                    onTabClose = actions.onTabClose,
++                    onItemClick = actions.onItemClick,
++                    onItemLongClick = actions.onItemLongClick,
++                    onEditTabGroupClick = {}, // Ignore tab group edits
++                    onCloseTabGroupClick = {}, // Ignore tab group closes
++                    onShareTabGroupClick = {}, // Ignore tab group shares
++                    onDeleteTabGroupClick = {}, // Ignore tab group deletes
++                    onUngroupTabGroupClick = {}, // Ignore tab group ungroups
++                    onTabGroupOnboardingDismiss = {}, // Ignore onboarding dismissals - onboarding is not shown in this layout
++                    contentPadding = PaddingValues(horizontal = sideMargin), // Only the side margins, shifted to make the scroller lane
++                    listHorizontalPadding = sideMargin,
++                    focusEnabled = true, // Drag and drop is not possible in this view, so focus should never be suppressed
++                )
++            }
++        }
++
++        Box(modifier = Modifier.padding(horizontal = sideMargin)) {
++            if (selectedCount > 0) {
++                GroupSelectionBar(
++                    selectedCount = selectedCount,
++                    allSelected = selectedCount == group.tabs.size,
++                    actions = headerActions,
++                )
++            } else {
++                GroupActionsBar(actions = actions)
++            }
          }
      }
  }
-@@ -182,7 +188,6 @@ private fun ViewTabGroupHeader(
+@@ -182,7 +190,6 @@ private fun ViewTabGroupHeader(
      title: String,
      groupTabsSize: Int,
      groupTheme: TabGroupTheme,
@@ -104,7 +123,7 @@ index ed3771bd..a0a19db8 100644
  ) {
      Row(
          modifier =
-@@ -224,9 +229,21 @@ private fun ViewTabGroupHeader(
+@@ -224,9 +231,21 @@ private fun ViewTabGroupHeader(
                  style = FirefoxTheme.typography.headline7,
              )
          }
@@ -128,7 +147,7 @@ index ed3771bd..a0a19db8 100644
          IconButton(
              onClick = actions.onSearchClick,
              contentDescription = stringResource(id = R.string.tab_manager_open_tab_search),
-@@ -240,13 +257,6 @@ private fun ViewTabGroupHeader(
+@@ -240,13 +259,6 @@ private fun ViewTabGroupHeader(
  
          Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))
  
@@ -142,7 +161,7 @@ index ed3771bd..a0a19db8 100644
          TabGroupMenuButton(
              includeCloseOption = true,
              includeUngroupOption = true,
-@@ -256,11 +266,18 @@ private fun ViewTabGroupHeader(
+@@ -256,11 +268,18 @@ private fun ViewTabGroupHeader(
              onShareTabGroupClick = actions.onShareTabGroupClick,
              onUngroupTabGroupClick = actions.onUngroupTabGroupClick,
          )
@@ -162,7 +181,7 @@ index ed3771bd..a0a19db8 100644
      selectedCount: Int,
      allSelected: Boolean,
      actions: ExpandedTabGroupActions,
-@@ -269,7 +286,7 @@ private fun GroupSelectionHeader(
+@@ -269,7 +288,7 @@ private fun GroupSelectionHeader(
          modifier =
              Modifier.fillMaxWidth()
                  .padding(
@@ -172,7 +191,7 @@ index ed3771bd..a0a19db8 100644
                  )
                  .wrapContentHeight()
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
-index 64972be9..f31bcbee 100644
+index 64972be994..f31bcbee34 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
 @@ -388,7 +388,6 @@ class TabManagementFragment : Fragment() {
