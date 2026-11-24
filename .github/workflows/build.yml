@@ -138,11 +138,23 @@ jobs:
 
       - name: Build Firefox+ APK
         if: steps.pick.outputs.skip == 'false'
-        env:
-          GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g"
         run: |
           cd "$HOME/firefox"
-          ./mach gradle fenix:assembleRelease
+          # Keep Gradle and the Kotlin compiler well inside the runner's 16 GB, doing fewer things at
+          # once. Slower, but the runner no longer runs out of memory and drops out.
+          jvm="-Xmx6g -Xms1g -XX:MaxMetaspaceSize=2g -XX:+UseParallelGC -XX:+HeapDumpOnOutOfMemoryError"
+          mkdir -p "$HOME/.gradle"
+          {
+            echo "org.gradle.jvmargs=$jvm"
+            echo "org.gradle.parallel=false"
+            echo "org.gradle.workers.max=2"
+            echo "kotlin.daemon.jvmargs=-Xmx3g"
+          } >> "$HOME/.gradle/gradle.properties"
+          # Memory use every minute, so a future dropout shows what was happening.
+          ( while sleep 60; do echo "[mem] $(free -m | awk '/Mem:/ {print "used " $3 " MB, free " $4 " MB"} /Swap:/ {print "swap used " $3 " MB"}' | tr '\n' ' ')"; done ) &
+          mon=$!
+          trap 'kill $mon 2>/dev/null || true' EXIT
+          ./mach gradle --max-workers=2 "-Dorg.gradle.jvmargs=$jvm" -Pkotlin.daemon.jvmargs=-Xmx3g fenix:assembleRelease
           find objdir/gradle/build/mobile/android/fenix/app/outputs/apk -name '*.apk' -print
 
       - name: Sign APK
