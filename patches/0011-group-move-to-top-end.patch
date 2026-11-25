@@ -307,10 +307,10 @@ index 8681c604..1e9ce122 100644
 +    ) : TabGroupAction, TabsStorageAction
  }
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
-index 84691188..15712af7 100644
+index 464cb650..b7db1787 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
-@@ -232,6 +232,19 @@ class TabStorageMiddleware(
+@@ -180,6 +180,19 @@ class TabStorageMiddleware(
                  }
              }
  
@@ -330,6 +330,14 @@ index 84691188..15712af7 100644
              is TabGroupAction.SelectedTabsRemovedFromGroup -> {
                  scope.launch {
                      if (action.emptiesGroup) {
+@@ -501,3 +514,7 @@ private fun duplicateKey(url: String): String? {
+     if (url.isBlank() || url.startsWith("about:")) return null
+     return url.substringBefore('#').trimEnd('/')
+ }
++
++/** Fetches a list of tab IDs in the group with [groupId]. Returns an empty list if the group is empty or not found. */
++private fun TabsTrayState.tabIdsForGroup(groupId: String): List<String> =
++    tabGroupState.groups.find { it.id == groupId }?.tabs?.map { it.id } ?: emptyList()
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt
 index 36f1d5e5..1c65dd53 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt
@@ -343,7 +351,7 @@ index 36f1d5e5..1c65dd53 100644
                  state.copy(
                      mode = TabsTrayState.Mode.Normal,
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
-index 915ba1f5..64972be9 100644
+index 0adf12b5..670a975d 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
 @@ -565,6 +565,17 @@ class TabManagementFragment : Fragment() {
@@ -374,7 +382,7 @@ index 915ba1f5..64972be9 100644
                  val groupTabIds = expandedGroup.tabs.map { it.id }.toSet()
                  val tabIds = tabsTrayStore.state.mode.selectedTabs.map { it.id }.filter { it in groupTabIds }
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
-index 63a2abce..b5376a18 100644
+index c976a931..85be7b0e 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
 @@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
@@ -412,7 +420,7 @@ index 63a2abce..b5376a18 100644
      val tabListBottomPadding = dimensionResource(id = R.dimen.tab_tray_list_bottom_padding)
      TabLayoutScrollHelper(
          state = state,
-@@ -1558,6 +1565,8 @@ private fun ReorderableTabList(
+@@ -1561,6 +1568,8 @@ private fun ReorderableTabList(
      onPrivacyReportTapped: (() -> Unit)? = null,
  ) {
      val state = rememberLazyListState()
@@ -421,7 +429,7 @@ index 63a2abce..b5376a18 100644
      val tabListBottomPadding = dimensionResource(id = R.dimen.tab_tray_list_bottom_padding)
  
      TabLayoutScrollHelper(
-@@ -2209,3 +2218,14 @@ private fun Modifier.drawHorizontalReorderIndicator(
+@@ -2215,3 +2224,14 @@ private fun Modifier.drawHorizontalReorderIndicator(
          }
      )
  }

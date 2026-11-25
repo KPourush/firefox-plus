@@ -1,8 +1,8 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/Core.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/Core.kt
-index e3007a55..ad35eec2 100644
+index f41f6dcd..2c13ba0a 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/Core.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/Core.kt
-@@ -766,7 +766,8 @@ class Core(
+@@ -773,7 +773,8 @@ class Core(
  
      companion object {
          private const val KEY_STORAGE_NAME = "core_prefs"

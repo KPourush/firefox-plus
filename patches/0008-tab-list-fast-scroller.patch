@@ -1,6 +1,6 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt
 new file mode 100644
-index 0000000000..92a5352be8
+index 00000000..92a5352b
 --- /dev/null
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabFastScroller.kt
 @@ -0,0 +1,185 @@
@@ -190,7 +190,7 @@ index 0000000000..92a5352be8
 +        }
 +}
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
-index 4db06b68de..c976a9313b 100644
+index 4db06b68..c976a931 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
 @@ -599,6 +599,7 @@ private fun ReorderableTabGrid(

@@ -1,3 +1,26 @@
+diff --git a/mobile/android/android-components/components/feature/tabdata-coordinator/src/main/java/mozilla/components/feature/tabdata/coordinator/TabDataCoordinator.kt b/mobile/android/android-components/components/feature/tabdata-coordinator/src/main/java/mozilla/components/feature/tabdata/coordinator/TabDataCoordinator.kt
+index 0f512832..781b919f 100644
+--- a/mobile/android/android-components/components/feature/tabdata-coordinator/src/main/java/mozilla/components/feature/tabdata/coordinator/TabDataCoordinator.kt
++++ b/mobile/android/android-components/components/feature/tabdata-coordinator/src/main/java/mozilla/components/feature/tabdata/coordinator/TabDataCoordinator.kt
+@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.SharingStarted.Companion.Eagerly
+ import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.collectLatest
+ import kotlinx.coroutines.flow.combine
+ import kotlinx.coroutines.flow.distinctUntilChanged
+ import kotlinx.coroutines.flow.filterNotNull
+@@ -224,7 +225,9 @@ class DefaultTabDataCoordinator(
+ 
+     override fun initialize() {
+         scope.launch {
+-            combinedDataFlow.filterNotNull().collect { data ->
++            // Firefox+: a rebuild still running when newer tab data arrives is dropped, so only the newest data is
++            // turned into a snapshot.
++            combinedDataFlow.filterNotNull().collectLatest { data ->
+                 withContext(dispatcher) {
+                     val transformedTabData = transformTabData(tabData = data)
+                     tabsSnapshot.emit(transformedTabData)
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabSearchMiddleware.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabSearchMiddleware.kt
 index 4c4d7b6b..7e81ef77 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabSearchMiddleware.kt
@@ -45,72 +68,43 @@ index 4c4d7b6b..7e81ef77 100644
                  }
              }
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
-index 15712af7..067971b7 100644
+index b7db1787..38748c25 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
-@@ -11,12 +11,15 @@ import kotlinx.coroutines.Dispatchers
- import kotlinx.coroutines.flow.Flow
- import kotlinx.coroutines.flow.SharingStarted.Companion.Eagerly
- import kotlinx.coroutines.flow.StateFlow
+@@ -7,9 +7,11 @@ package org.mozilla.fenix.tabstray.redux.middleware
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Dispatchers
 +import kotlinx.coroutines.flow.collectLatest
- import kotlinx.coroutines.flow.combine
- import kotlinx.coroutines.flow.distinctUntilChanged
-+import kotlinx.coroutines.flow.distinctUntilChangedBy
  import kotlinx.coroutines.flow.filterNotNull
- import kotlinx.coroutines.flow.map
- import kotlinx.coroutines.flow.stateIn
+ import kotlinx.coroutines.flow.first
  import kotlinx.coroutines.launch
 +import kotlinx.coroutines.withContext
- import mozilla.components.browser.state.state.TabSessionState
- import mozilla.components.feature.tabgroups.storage.data.TabGroup
- import mozilla.components.feature.tabgroups.storage.data.TabGroupData
-@@ -107,7 +110,7 @@ class TabStorageMiddleware(
-     private val combinedDataFlow: StateFlow<CombinedTabData?> =
-         if (tabGroupsEnabled) {
-             combine(
--                    flow = tabDataFlow.distinctUntilChanged(),
-+                    flow = tabDataFlow.distinctUntilChangedBy { it.trayKey() },
-                     flow2 = tabGroupRepository.tabGroupDataFlow.distinctUntilChanged(),
-                 ) { tabData, tabGroupData ->
-                     CombinedTabData(combinedData = Pair(tabData, tabGroupData))
-@@ -115,6 +118,7 @@ class TabStorageMiddleware(
-                 .toCombinedDataStateFlow()
-         } else {
-             tabDataFlow
-+                .distinctUntilChangedBy { it.trayKey() }
-                 .map { CombinedTabData(combinedData = Pair(it, TabGroupData())) }
-                 .distinctUntilChanged()
-                 .toCombinedDataStateFlow()
-@@ -147,21 +151,21 @@ class TabStorageMiddleware(
+ import mozilla.components.browser.state.store.BrowserStore
+ import mozilla.components.feature.tabdata.coordinator.TabDataCoordinator
+ import mozilla.components.feature.tabdata.coordinator.data.findTab
+@@ -87,15 +89,13 @@ class TabStorageMiddleware(
          when (action) {
              InitAction -> {
                  // Set up the tab data observer and set the Flow collection to the lifetime of main scope
 +                // Firefox+: only the newest data is turned into a tab list. A rebuild still running when newer data
 +                // arrives is dropped instead of finishing and redrawing the tray with outdated tabs.
                  mainScope.launch {
--                    combinedDataFlow.filterNotNull().collect { data ->
+-                    tabDataCoordinator.tabsSnapshot.filterNotNull().collect { snapshot ->
 -                        scope.launch {
--                            val transformedTabData =
-+                    combinedDataFlow.filterNotNull().collectLatest { data ->
-+                        val transformedTabData =
-+                            withContext(Dispatchers.Default) {
-                                 transformTabData(
-                                     tabs = data.tabs,
-                                     selectedTabId = data.selectedTabId,
-                                     tabGroups = data.tabGroups,
-                                     tabGroupAssignments = data.tabGroupAssignments,
-                                 )
--
+-                            val tabStorageUpdate = snapshot.toTabStorageUpdate()
++                    tabDataCoordinator.tabsSnapshot.filterNotNull().collectLatest { snapshot ->
++                        val tabStorageUpdate = withContext(Dispatchers.Default) { snapshot.toTabStorageUpdate() }
+ 
 -                            mainScope.launch {
--                                store.dispatch(TabDataUpdateReceived(tabStorageUpdate = transformedTabData))
-                             }
+-                                store.dispatch(TabDataUpdateReceived(tabStorageUpdate = tabStorageUpdate))
+-                            }
 -                        }
-+
-+                        store.dispatch(TabDataUpdateReceived(tabStorageUpdate = transformedTabData))
++                        store.dispatch(TabDataUpdateReceived(tabStorageUpdate = tabStorageUpdate))
                      }
                  }
              }
-@@ -602,6 +606,10 @@ class TabStorageMiddleware(
+@@ -488,6 +488,10 @@ class TabStorageMiddleware(
                  duplicateSets.none { copies -> assignments[copies.maxBy { it.createdAt }.id] == groupId }
              }
  
@@ -121,8 +115,8 @@ index 15712af7..067971b7 100644
          duplicateSets.forEach { copies ->
              val sorted = copies.sortedByDescending { it.createdAt }
              val newest = sorted.first()
-@@ -609,13 +617,17 @@ class TabStorageMiddleware(
-             sequenceGroupedTabsTogether(tabIds = older, targetTabId = newest.id)
+@@ -495,13 +499,17 @@ class TabStorageMiddleware(
+             sequenceTabsTogether(tabIds = older, targetTabId = newest.id)
              val groupId = assignments[newest.id]
              if (groupId != null) {
 -                tabGroupRepository.addTabsToTabGroup(tabGroupId = groupId, tabIds = older)
@@ -143,47 +137,3 @@ index 15712af7..067971b7 100644
          if (emptiedGroupIds.isNotEmpty()) {
              tabGroupRepository.deleteTabGroupsById(ids = emptiedGroupIds)
          }
-@@ -1026,3 +1038,43 @@ private fun TabsTrayState.lastTabInGroupId(groupId: String): String? =
- /** Fetches the ID of the first tab in the group with [groupId], or null if the group is empty. */
- private fun TabsTrayState.firstTabInGroupId(groupId: String): String? =
-     tabGroupState.groups.find { it.id == groupId }?.tabs?.firstOrNull()?.id
-+
-+/**
-+ * Firefox+: the parts of a tab the tab tray shows or uses. Other changes, such as a page's loading progress, don't
-+ * rebuild the tab list.
-+ */
-+private data class TrayTabKey(
-+    val id: String,
-+    val url: String,
-+    val title: String,
-+    val private: Boolean,
-+    val icon: android.graphics.Bitmap?,
-+    val mediaPlaying: Boolean,
-+    val lastAccess: Long,
-+    val createdAt: Long,
-+)
-+
-+private data class TrayDataKey(
-+    val selectedTabId: String?,
-+    val tabs: List<TrayTabKey>,
-+)
-+
-+private fun TabData.trayKey(): TrayDataKey =
-+    TrayDataKey(
-+        selectedTabId = selectedTabId,
-+        tabs =
-+            tabs.map { tab ->
-+                TrayTabKey(
-+                    id = tab.id,
-+                    url = tab.content.url,
-+                    title = tab.content.title,
-+                    private = tab.content.private,
-+                    icon = tab.content.icon,
-+                    mediaPlaying =
-+                        tab.mediaSessionState?.playbackState ==
-+                            mozilla.components.concept.engine.mediasession.MediaSession.PlaybackState.PLAYING,
-+                    lastAccess = tab.lastAccess,
-+                    createdAt = tab.createdAt,
-+                )
-+            },
-+    )

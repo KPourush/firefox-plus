@@ -1,8 +1,8 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
-index 3d806855..a76a8664 100644
+index d9e862bc..edfd9842 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/browser/BrowserFragment.kt
-@@ -210,6 +210,26 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+@@ -207,6 +207,26 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
          setupShakeDetection()
      }
  
@@ -29,7 +29,7 @@ index 3d806855..a76a8664 100644
      private fun setupToolbarSwipeBehavior(settings: Settings, components: Components) {
          if (!settings.isTabStripEnabled && settings.isSwipeToolbarToSwitchTabsEnabled) {
              binding.gestureLayout.addGestureListener(
-@@ -221,6 +241,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
+@@ -218,6 +238,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
                      navBarLayoutRect = { browserNavigationBar?.layout?.getRectWithScreenLocation() },
                      store = components.core.store,
                      selectTabUseCase = components.useCases.tabsUseCases.selectTab,
@@ -38,7 +38,7 @@ index 3d806855..a76a8664 100644
                          thumbnailsFeature
                              .get()
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt
-index ee3f5a7c..754246e9 100644
+index ee3f5a7c..cc047add 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/gestures/ToolbarHorizontalGesturesHandler.kt
 @@ -53,6 +53,7 @@ class ToolbarHorizontalGesturesHandler(

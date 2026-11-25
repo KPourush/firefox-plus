@@ -1,5 +1,5 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
-index 386ec964..2c9893f6 100644
+index e7754841..c6ec21b8 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabgroups/ExpandedTabGroup.kt
 @@ -17,6 +17,7 @@ import androidx.compose.material3.Icon
@@ -183,13 +183,54 @@ index 18fc465c..56b23abb 100644
 +    ) : TabGroupAction
  }
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
-index 0dbdff55..57d84815 100644
+index 8caab8c9..4db5f040 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/middleware/TabStorageMiddleware.kt
-@@ -217,6 +217,16 @@ class TabStorageMiddleware(
+@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
+ import mozilla.components.feature.tabdata.coordinator.TabDataCoordinator
+ import mozilla.components.feature.tabdata.coordinator.data.findTab
+ import mozilla.components.feature.tabdata.coordinator.data.findTabGroup
++import mozilla.components.feature.tabgroups.storage.repository.TabGroupRepository
+ import mozilla.components.lib.state.Middleware
+ import mozilla.components.lib.state.Store
+ import mozilla.components.support.base.log.logger.Logger
+@@ -38,12 +39,14 @@ private enum class GestureItem {
+  * [Middleware] that reacts to [TabsTrayAction] and performs tab data side effects.
+  *
+  * @param tabDataCoordinator The [TabDataCoordinator] used to observe and update tab data.
++ * @param tabGroupRepository The [TabGroupRepository] used for Firefox+'s own tab group changes.
+  * @param fenixBrowserUseCases The [FenixBrowserUseCases] used to add a homepage tab for starter tab groups.
+  * @param scope The [CoroutineScope] for running the tab data updates off of the main thread.
+  * @param mainScope The [CoroutineScope] used for returning to the main thread.
+  */
+ class TabStorageMiddleware(
+     private val tabDataCoordinator: TabDataCoordinator,
++    private val tabGroupRepository: TabGroupRepository,
+     private val fenixBrowserUseCases: FenixBrowserUseCases,
+     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+     private val mainScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
+@@ -93,7 +96,16 @@ class TabStorageMiddleware(
  
-             // todo-bug-2069535: Hook up to the coordinator storage layer when it is ready
-             is TabGroupAction.TabAddedToNewTabGroup -> {}
+             is TabGroupAction.SelectedTabsAddedToGroup -> {
+                 val selectedTabIds = store.state.mode.selectedTabs.map { it.id }
+-                val selectedTabGroupIds = store.state.mode.selectedTabGroups.map { it.id } - action.groupId
++                // Firefox+: groups whose tabs are all being moved are removed as well.
++                val movedIds = selectedTabIds.toSet()
++                val emptiedGroupIds =
++                    store.state.tabGroupState.groups
++                        .filter {
++                            it.id != action.groupId && it.tabs.isNotEmpty() && it.tabs.all { tab -> tab.id in movedIds }
++                        }
++                        .map { it.id }
++                val selectedTabGroupIds =
++                    (store.state.mode.selectedTabGroups.map { it.id } + emptiedGroupIds).distinct() - action.groupId
+ 
+                 scope.launch {
+                     tabDataCoordinator.addTabsToTabGroup(tabGroupId = action.groupId, tabIds = selectedTabIds)
+@@ -146,6 +158,16 @@ class TabStorageMiddleware(
+                     tabDataCoordinator.addTabsToTabGroup(tabGroupId = action.groupId, tabIds = listOf(action.tabId))
+                 }
+             }
 +
 +            is TabGroupAction.SelectedTabsRemovedFromGroup -> {
 +                scope.launch {
@@ -203,21 +244,6 @@ index 0dbdff55..57d84815 100644
          }
      }
  
-@@ -225,7 +235,13 @@ class TabStorageMiddleware(
-         store: Store<TabsTrayState, TabsTrayAction>,
-     ) {
-         val selectedTabIds = store.state.mode.selectedTabs.map { it.id }
--        val selectedTabGroupIds = store.state.mode.selectedTabGroups.map { it.id } - action.groupId
-+        val movedIds = selectedTabIds.toSet()
-+        val emptiedGroupIds =
-+            store.state.tabGroupState.groups
-+                .filter { it.id != action.groupId && it.tabs.isNotEmpty() && it.tabs.all { tab -> tab.id in movedIds } }
-+                .map { it.id }
-+        val selectedTabGroupIds =
-+            (store.state.mode.selectedTabGroups.map { it.id } + emptiedGroupIds).distinct() - action.groupId
- 
-         scope.launch {
-             addTabItemsToTabGroup(
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt
 index b8c3ecab..c5cf6ec7 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/reducer/TabGroupActionReducer.kt
@@ -272,10 +298,10 @@ index b8c3ecab..c5cf6ec7 100644
              is TabGroupAction.DeleteClicked ->
                  state.copy(backStack = state.backStack + DeleteTabGroupConfirmationDialog(group = action.group))
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
-index 4797acfe..fdf0e232 100644
+index 89b1d5f3..f2375133 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
-@@ -409,6 +409,7 @@ class TabManagementFragment : Fragment() {
+@@ -416,6 +416,7 @@ class TabManagementFragment : Fragment() {
                      args = args,
                      handleTabClick = handleTabClick,
                      displayTabsInGrid = state.config.displayTabsInGrid,
@@ -283,7 +309,7 @@ index 4797acfe..fdf0e232 100644
                  )
              }
              entry<TabManagerNavDestination.DeleteTabGroupConfirmationDialog>(metadata = DialogSceneStrategy.dialog()) {
-@@ -534,6 +535,7 @@ class TabManagementFragment : Fragment() {
+@@ -541,6 +542,7 @@ class TabManagementFragment : Fragment() {
          args: TabManagerNavDestination.ExpandedTabGroup,
          handleTabClick: (TabsTrayItem.Tab) -> Unit,
          displayTabsInGrid: Boolean,
@@ -291,7 +317,7 @@ index 4797acfe..fdf0e232 100644
      ) {
          val expandedGroup by tabsTrayStore.observeTabGroup(tabGroup = args.group).collectAsState(initial = args.group)
          val expandedGroupDotColor = expandedGroup.theme.primary.toArgb()
-@@ -550,9 +552,19 @@ class TabManagementFragment : Fragment() {
+@@ -557,9 +559,19 @@ class TabManagementFragment : Fragment() {
              actions = expandedGroupActions,
              displayTabsInGrid = displayTabsInGrid,
              itemInteractionHandler = itemInteractionHandler,
@@ -311,7 +337,7 @@ index 4797acfe..fdf0e232 100644
      private fun expandedTabGroupActions(
          handleTabClick: (TabsTrayItem.Tab) -> Unit,
          expandedGroup: TabsTrayItem.TabGroup,
-@@ -561,11 +573,50 @@ class TabManagementFragment : Fragment() {
+@@ -568,11 +580,50 @@ class TabManagementFragment : Fragment() {
          return ExpandedTabGroupActions(
              onItemClick = {
                  when (it) {
@@ -363,3 +389,11 @@ index 4797acfe..fdf0e232 100644
              onTabClose = { tab ->
                  tabsTrayStore.dispatch(TabGroupAction.TabClosed(tab = tab, group = expandedGroup))
              },
+@@ -734,6 +785,7 @@ class TabManagementFragment : Fragment() {
+                         TabSearchNavigationMiddleware(onSearchResultClicked = ::performTabClick),
+                         TabStorageMiddleware(
+                             tabDataCoordinator = requireComponents.tabDataCoordinator,
++                            tabGroupRepository = requireComponents.core.tabGroupRepository,
+                             fenixBrowserUseCases = requireComponents.useCases.fenixBrowserUseCases,
+                             mainScope = lifecycleScope,
+                         ),
