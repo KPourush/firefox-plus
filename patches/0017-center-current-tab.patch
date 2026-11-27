@@ -1,0 +1,14 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
+index 85be7b0e..4d08b2c7 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
+@@ -497,7 +497,8 @@ private fun TabLayoutScrollHelper(
+                 viewportHeight > 0 && itemHeight > 0
+             }
+             .let { (viewportHeight, itemHeight) ->
+-                val offset = -(viewportHeight - itemHeight - bottomPaddingPx)
++                // Firefox+: center the current tab in the visible area instead of aligning it to the bottom.
++                val offset = -((viewportHeight - bottomPaddingPx - itemHeight) / 2).coerceAtLeast(0)
+                 withFrameNanos {}
+                 scrollToItem(targetIndex, offset)
+             }

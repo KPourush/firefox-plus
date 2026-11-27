@@ -55,6 +55,9 @@ Toolbar swipe follows the tab tray order: through a group's tabs in group order,
 **Fast scroller** · `0008`<br>
 Draggable scrollbar on the right edge of the tab list, in its own 24 dp lane: the tabs keep their width and move left into the side margin, so the scrollbar never sits on top of them. In the overview and inside open groups (list and grid view). Hold the thumb and drag to jump through hundreds of tabs.
 
+**Current tab centered** · `0017`<br>
+Opening the tab tray shows the current tab in the middle of the screen instead of at the bottom, in the overview and inside groups (list and grid view).
+
 ## 📱 App identity
 
 **Installs next to Firefox** · `0003`<br>

@@ -120,6 +120,7 @@ Every change lives as a plain `git apply` patch in [`patches/`](patches), applie
 | `0014-tab-tray-performance.patch` | An outdated tab list rebuild is dropped when a newer one starts (Firefox 161 and later already skip rebuilds for page-loading updates on their own). Tab search cancels the previous search on each keystroke and only shows results for the newest query. Sorting duplicates saves group changes once per group instead of once per page. |
 | `0015-recently-closed-1000.patch` | Recently closed keeps the last 1,000 closed tabs instead of 10. |
 | `0016-recently-closed-by-close-time.patch` | Recently closed is sorted by when each tab was closed instead of when it was last opened, so closing an old tab puts it at the top instead of the bottom (where it could be pruned straight away). |
+| `0017-center-current-tab.patch` | Opening the tab tray shows the current tab in the middle of the screen instead of at the bottom, in the overview and inside open groups (list and grid view). |
 
 </details>
 
